@@ -31,19 +31,18 @@ def writeLines(streamBuff: io.TextIOWrapper, lines: str, sem: threading.Semaphor
 
 def clearLine(line: str) -> str:
 
-    out = ''
-    for halfMove in line.split(' '):
+    return line
 
-        ind = halfMove.find('.')
-        if ind >= 0:
-            halfMove = halfMove[ind + 1:]
+    # out = ''
+    # for halfMove in line.split(' '):
 
-        if halfMove == 'O-O':
-            halfMove = '0-0'
+    #     ind = halfMove.find('.')
+    #     if ind >= 0:
+    #         halfMove = halfMove[ind + 1:]
 
-        out += halfMove
+    #     out += halfMove
 
-    return out
+    # return out
 
 
 def processLine(line: str) -> str:
@@ -55,18 +54,6 @@ def processLine(line: str) -> str:
     if line[0] == '[': return ''
 
     if line[0].isdigit():
-        
-        # check if the score is at the end of the line
-        last_line = False
-        for s in POSSIBLE_SCORES:
-            
-            if line.find(s) + 1:
-                last_line = True
-                break
-    
-        # add new line character at the end of the line
-        if last_line:
-            line += '\n'
 
         return line
 
