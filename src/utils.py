@@ -90,14 +90,21 @@ def process_batch(readBuff: io.TextIOWrapper, writeBuff: io.TextIOWrapper, batch
 
 def main():
 
-    read_buff = open('../data/Chess_Games.txt', 'r')
-    write_buff = open('../data/Chess_Games_No_Spaces.txt', 'w')
+    read_buff = open('../data/test_file.pgn', 'r')
+    write_buff = open('../data/test_file.clean.pgn', 'w')
 
-    p1 = threading.Thread(target=process_batch, args=(read_buff, write_buff, BATCH_SIZE))
+    threads: List[threading.Thread] = []
+    
+    for i in range(4):
+        threads.append(threading.Thread(target=process_batch, args=(read_buff, write_buff, BATCH_SIZE)))
 
-    p1.start()
 
-    p1.join()
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
 
     read_buff.close()
     write_buff.close()
