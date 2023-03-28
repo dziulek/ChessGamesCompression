@@ -8,6 +8,11 @@ import math
 from typing import List, Dict
 import threading
 
+from src.stats import Stats
+from src.utils import readLines, filterLines, writeLines
+
+BATCH_SIZE = int(1e5)
+
 SCORE_MAP = {'1-0': 0, '0-1': 1, '1/2-1/2': 2}
 REV_SCORE_MAP = {0: '1-0', 1: '0-1', 2: '1/2-1/2'}
 
@@ -16,41 +21,52 @@ FOUR_1 = 0xffffffff
 BIT_S = 32
 
 BUFF_SEM = threading.Semaphore()
+sem_write = threading.Semaphore()
+sem_read = threading.Semaphore()
 
-def encode(buff: io.TextIOWrapper, games: List[str], sem: threading.Semaphore) -> None:
+sem_stats = threading.Semaphore()
+
+def encode(buff: io.TextIOWrapper, games: List[str], sem: threading.Semaphore, stats: Stats=None) -> None:
 
     enc_data = []
-
 
     for game_notation in games:
 
         pgn = io.StringIO(game_notation)
         game: chess.pgn.ChildNode = chess.pgn.read_game(pgn)
+
+        if stats is not None:
+            stats.add_game(game)
+
         bits = 0
         _bin = int(0)
         _carry = int(0)
 
         score = SCORE_MAP[game.headers.get('Result')]
 
-        move_cnt = int(0)
         while game is not None:
 
+            board = game.board()
             
-            number_of_moves = game.board().legal_moves.count()
+            number_of_moves = board.legal_moves.count()
+            if number_of_moves == 0:
+                break
             k = math.floor(math.log2(number_of_moves)) + 1
 
-            moves: List[str] = [move.uci() for move in list(game.board().legal_moves)]
+            moves: List[str] = [move.uci() for move in list(board.legal_moves)]
             moves.sort()
             game = game.next()
             if game is None:
                 break
             move_no = moves.index(game.move.uci())  
-            move_cnt += 1
+
+            if stats is not None:
+                stats.add_move(game.move, board)
 
             if bits + k > BIT_S:
                 _bin <<= (BIT_S - bits)
                 bits = (bits + k) % BIT_S
-                _carry = (FOUR_1 >> (BIT_S - bits) & move_no)
+                _carry = (FOUR_1 >> (BIT_S - bits)) & move_no
                 move_no >>= (bits)
 
                 _bin |= move_no
@@ -67,75 +83,139 @@ def encode(buff: io.TextIOWrapper, games: List[str], sem: threading.Semaphore) -
         enc_data.append(_bin)
     
     sem.acquire()
-
-    move_cnt <<= 2
-    move_cnt += score
-    buff.write(move_cnt.to_bytes(2, byteorder='big'))
+    pref = 4 * len(enc_data) + 2
+    pref <<= 2
+    pref += score
+    buff.write(pref.to_bytes(2, byteorder='big'))
     for _b in enc_data:
         buff.write(_b.to_bytes(4, byteorder='big'))
     
     sem.release()
-    
-    print("success")
 
+def decode(buff: io.TextIOWrapper, sem: threading.Semaphore, batch_size: int) -> List[str]:
 
-def decode(buff: io.TextIOWrapper) -> str:
+    decoded_games = []
 
-    game = chess.pgn.Game()
-    bits = BIT_S
-    _carry = int(0)
-    _bin = int.from_bytes(buff.read(2), 'big')
+    sem.acquire()
 
-    score = REV_SCORE_MAP[_bin & (FOUR_1 >> BIT_S - 2)]
-    moves_no = _bin >> 2
+    enc_data = []
+    b_cnt = 0
+    while b_cnt < batch_size:
 
-    _bin = int.from_bytes(buff.read(4), 'big')
-
-    for i in range(moves_no):
+        enc_data.append(int.from_bytes(buff.read(2), 'big'))
+        bytes_no = enc_data[-1]>>2
         
-        moves = [move.uci() for move in  list(game.board().legal_moves)]
-        moves.sort()
-        moves_no = len(moves)
-        k = math.floor(math.log2(moves_no)) + 1
+        for _ in range(bytes_no):
+            enc_data.append(int.from_bytes(buff.read(4), 'big'))
+        
+        b_cnt += bytes_no
 
-        if bits < k:
-            _carry = _bin >> (BIT_S - bits)
+    sem.release()
 
-            _bin = int.from_bytes(buff.read(4), 'big')
-            move = moves[_carry<<(k - bits) + _bin>>(BIT_S - (k - bits))]
-            _bin &= (FOUR_1 >> (k - bits))
-            _bin <<= (k - bits)
-            bits = BIT_S - (k - bits)
+    it = 0
+    while it < len(enc_data):
 
-        else:  
-            move = moves[_bin >> (BIT_S - k)]
-            _bin &= (FOUR_1 >> (k))
-            _bin <<= (k)
-            bits -= k
+        game = chess.pgn.Game()
+        bits = BIT_S
+        _carry = int(0)
+        _bin = enc_data[it]
+        it+=1
 
-        game = game.add_main_variation(chess.Move.from_uci(move))
+        score = REV_SCORE_MAP[_bin & (FOUR_1 >> BIT_S - 2)]
+        bytes_no = _bin >> 2
 
-    game.headers["Result"] = score
-    return str(game)
+        _bin = enc_data[it]
+        it+=1
+        b_cnt = 6
 
+        while b_cnt < bytes_no:
+            
+            moves = [move.uci() for move in  list(game.board().legal_moves)]
+            moves.sort()
+            moves_no = len(moves)
+            k = math.floor(math.log2(moves_no)) + 1
+
+            if bits < k:
+                _carry = _bin >> (BIT_S - bits)
+
+                _bin = enc_data[it]
+                it+=1
+                b_cnt += 4
+                _tmp = _bin>>(BIT_S - (k - bits))
+                __tmp = _carry<<(k - bits)
+                move = moves[__tmp + _tmp]
+                _bin &= (FOUR_1 >> (k - bits))
+                _bin <<= (k - bits)
+                bits = BIT_S - (k - bits)
+
+            else:  
+                move = moves[_bin >> (BIT_S - k)]
+                _bin &= (FOUR_1 >> (k))
+                _bin <<= (k)
+                bits -= k
+
+            game = game.add_main_variation(chess.Move.from_uci(move))
+
+        game.game().headers["Result"] = score
+        out = str(game.game())
+
+        decoded_games.append(out[out.rfind('\n') + 1 : ])
+
+    return decoded_games
+
+def process_encode(readBuff: io.TextIOWrapper, writeBuff: io.TextIOWrapper, batch_size: int,
+        algorithm='rank', stats: Stats=None) -> None:
+
+    global sem_write, sem_read
+
+    lines = readLines(readBuff, BATCH_SIZE, sem_read)
+
+    while lines is not None and len(lines) > 0:
+        
+        lines = filterLines(lines)
+
+        encode(writeBuff, lines, sem_write, stats)
+
+        lines = readLines(readBuff, BATCH_SIZE, sem_read)
+    
+def process_decode(readBuff: io.TextIOWrapper, batch_size: int,
+        algorithm='rank') -> List[str]:
+
+    global sem_write
+
+    games = decode(readBuff, sem_write, BATCH_SIZE)
+
+def compressed_file_stats(path: str, total_moves: int, total_games: int, origin_size: int):
+
+    pass
 
 
 
 def main():
 
-    f = open('encode_test.bin', 'wb')
+    source_file = '/home/czewian/Studia/ChessGamesCompression/data/test_file.txt'
+    dest_file = '/home/czewian/Studia/ChessGamesCompression/data/encoded_test_file.bin'
 
-    with open('/home/czewian/Studia/ChessGamesCompression/data/bin_test_file.txt', 'r') as d:
-        game_notation = d.readline()
+    stats = Stats(source_file, dest_file, sem_stats)
 
-        encode(f, [game_notation], BUFF_SEM)
-        f.close
-        f = open('encode_test.bin', 'rb')
-        decoded = decode(f)
-        
-        assert decoded == game_notation
+    read_buff = open(source_file, 'r')
+    write_buff = open(dest_file, 'wb')
 
-    f.close()
+    threads: List[threading.Thread] = []
+    
+    for i in range(1):
+        threads.append(threading.Thread(target=process_encode, args=(read_buff, write_buff, BATCH_SIZE, stats)))
+
+    for thread in threads:
+        thread.start()
+
+    for thread in threads:
+        thread.join()
+
+    read_buff.close()
+    write_buff.close()
+
+    
 
 if __name__ == "__main__":
 
