@@ -1,5 +1,6 @@
 import threading
 import chess
+import os
 
 from src.compressors import process_decode, process_encode, BATCH_SIZE, sem_stats
 from src.stats import Stats
@@ -8,8 +9,11 @@ from typing import List, Dict
 
 def main():
 
-    source_file = '/home/czewian/Studia/ChessGamesCompression/data/bin_test_file.txt'
-    dest_file = '/home/czewian/Studia/ChessGamesCompression/data/encoded_test_file.bin'
+    script_path = os.path.realpath(__file__)
+    script_path = script_path[:script_path.rfind('/')]
+
+    source_file = script_path + '/data/bin_test_file.txt'
+    dest_file = script_path + '/data/encoded_test_file.bin'
 
     stats = Stats(source_file, dest_file, sem_stats)
 

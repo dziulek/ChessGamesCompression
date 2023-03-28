@@ -5,6 +5,10 @@ import threading
 import json
 import os
 import time
+import functools
+import threading
+
+from src.utils import atomic_operation, sem_stats
 
 WHITE_WINS = '1-0'
 BLACK_WINS = '0-1'
@@ -27,6 +31,8 @@ MOVE_DISTR_END = 'End square move frequency'
 class Stats:
 
     def __init__(self, path_data: str, path_encoded, sem: threading.Semaphore=None) -> None:
+
+        self.instance_semaphore = threading.Semaphore()
         self.path_data = path_data
         self.path_encoded = path_encoded
         self.move_no = 0
@@ -70,18 +76,15 @@ class Stats:
             COMPRESSION_TIME: 0            
         }
 
+    
+    @atomic_operation(sem=sem_stats)
     def add_game(self, game: chess.pgn.Game) -> None:
-
-        self.sem.acquire()
 
         self.game_no += 1
         self.results_distr[game.headers["Result"]] += 1
 
-        self.sem.release()
-
+    @atomic_operation(sem=sem_stats)
     def add_move(self, move: chess.Move, board: chess.Board) -> None:
-
-        self.sem.acquire()
 
         uci = move.uci()
         start, end = uci[:2], uci[2:]
@@ -90,8 +93,6 @@ class Stats:
         self.move_distr_end[ord(end[0]) - ord('a')][int(end[1]) - 1] += 1
 
         self.move_distr_piece[board.piece_at(move.from_square).symbol().lower()] += 1
-
-        self.sem.release()
 
     def set_metrics(self,):
 
@@ -138,12 +139,16 @@ class Stats:
         self.__end = time.time()
         self.compression_time = self.__end - self.__start
 
-    def get_json(self,):
+    def get_dict(self,):
 
         d = {}
 
         d['Metrics'] = self.metrics
         d['Source path'] = self.path_data
-        d['Encoded path'] = self.path_encoded
+        d['Encoded path'] = self.path_encoded   
 
-        return json.dumps(d)
+        return d     
+
+    def get_json(self,):
+
+        return json.dumps(self.get_dict())
