@@ -2,7 +2,7 @@ import numpy as np
 import os
 import io
 import threading
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Tuple
 
 import chess
 import functools
@@ -15,6 +15,9 @@ read_bin_sem = threading.Semaphore()
 sem_stats = threading.Semaphore()
 
 POSSIBLE_SCORES = ["0-1", "1-0", "1/2-1/2"]
+
+FOUR_0 = 0x00000000
+FOUR_1 = 0xffffffff
 
 def atomic_operation(sem: threading.Semaphore=None):
 
@@ -99,6 +102,32 @@ def move_from_code(mov_code: str) -> chess.Move:
         move.promotion = int(mov_code[-1])
 
     return move
+
+def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, int]:
+
+    _carry = -1
+
+    if bits + k > BITS:
+        _bin <<= (BITS - bits)
+        bits = (bits + k) % BITS
+        _carry = (FOUR_1 >> (BITS - bits)) & val
+        val >>= (bits)
+
+        _bin |= val
+
+        return _bin, _carry
+
+    _bin <<= k
+    bits += k
+
+    _bin |= val 
+
+    return _bin, _carry
+
+def get_script_path() -> str:
+
+    path = os.path.realpath(__file__)
+    return path[: path.rfind('/')]
 
 def main():
 

@@ -9,7 +9,7 @@ from typing import List, Dict
 import threading
 
 from src.stats import Stats
-from src.utils import sort_moves, move_code, move_from_code, read_binary, write_binary, write_lines, read_lines
+from src.utils import sort_moves, move_code, move_from_code, read_binary, write_binary, write_lines, read_lines, to_binary
 
 BATCH_SIZE = int(1e5)
 
@@ -26,7 +26,7 @@ sem_read = threading.Semaphore()
 
 sem_stats = threading.Semaphore()
 
-def encode_rank(buff: io.TextIOWrapper, games: List[str], stats: Stats=None) -> bytes:
+def encode_rank(games: List[str], stats: Stats=None) -> bytes:
 
     enc_data = bytes()
 
@@ -63,21 +63,13 @@ def encode_rank(buff: io.TextIOWrapper, games: List[str], stats: Stats=None) -> 
             if stats is not None:
                 stats.add_move(game.move, board)
 
-            if bits + k > BIT_S:
-                _bin <<= (BIT_S - bits)
-                bits = (bits + k) % BIT_S
-                _carry = (FOUR_1 >> (BIT_S - bits)) & move_no
-                move_no >>= (bits)
-
-                _bin |= move_no
-
+            _bin, _carry = to_binary(
+                _bin, BIT_S, bits, move_no, k
+            )
+            if _carry >= 0:
                 enc_data += _bin.to_bytes(4, 'big')
                 _bin = _carry
-            else:
-                _bin <<= k
-                bits += k
 
-                _bin |= move_no 
 
         _bin <<= (BIT_S - bits)
         enc_data += _bin.to_bytes(4, 'big')
@@ -93,7 +85,7 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
 
     decoded_games = []
 
-    enc_data = bytes
+    enc_data = bytes()
     b_cnt = 0
     while b_cnt < batch_size:
 
@@ -154,25 +146,6 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
         decoded_games.append(out[out.rfind('\n') + 1 : ])
 
     return decoded_games
-
-def process_encode(w_buff: io.TextIOWrapper, games: List[str], batch_size: int, sem: threading.Semaphore,
-        algorithm='rank', stats: Stats=None) -> None:
-
-    encode_rank(w_buff, games, sem, stats)
-    
-def process_decode(r_buff: io.TextIOWrapper, batch_size: int,
-        algorithm='rank') -> List[str]:
-
-    global sem_write
-
-    games = decode_rank(r_buff, sem_write, BATCH_SIZE)
-
-    return games
-
-def compressed_file_stats(path: str, total_moves: int, total_games: int, origin_size: int):
-
-    pass
-
 
 
 def main():
