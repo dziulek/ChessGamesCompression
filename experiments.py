@@ -75,8 +75,8 @@ def main():
     files = ['bin_test_file.txt']
 
     algorithms: Dict[str, Tuple[function, function]] = {
-        # 'rank': (encode_rank, decode_rank)
-        'naive': (encode_naive, decode_naive)
+        'rank': (encode_rank, decode_rank)
+        # 'naive': (encode_naive, decode_naive)
     }
     
     dest_files = [file for file in files]

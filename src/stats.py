@@ -8,7 +8,7 @@ import time
 import functools
 import threading
 
-from src.utils import atomic_operation, sem_stats
+from utils import atomic_operation, sem_stats
 
 WHITE_WINS = '1-0'
 BLACK_WINS = '0-1'

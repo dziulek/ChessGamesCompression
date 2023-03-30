@@ -18,6 +18,13 @@ POSSIBLE_SCORES = ["0-1", "1-0", "1/2-1/2"]
 
 FOUR_0 = 0x00000000
 FOUR_1 = 0xffffffff
+BIT_S = 32
+
+def extract_move_idx(bin: int, off_b: int, k: int):
+
+    mask = (bin >> off_b) & (FOUR_1 >> (BIT_S - k))
+
+    return mask
 
 def atomic_operation(sem: threading.Semaphore=None):
 
@@ -103,7 +110,7 @@ def move_from_code(mov_code: str) -> chess.Move:
 
     return move
 
-def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, int]:
+def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, int, int]:
 
     _carry = -1
 
@@ -115,14 +122,14 @@ def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, i
 
         _bin |= val
 
-        return _bin, _carry
+        return _bin, _carry, bits
 
     _bin <<= k
     bits += k
 
     _bin |= val 
 
-    return _bin, _carry
+    return _bin, _carry, bits
 
 def get_script_path() -> str:
 

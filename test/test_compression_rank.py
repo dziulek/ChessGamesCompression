@@ -35,7 +35,7 @@ class Test_compression_rank(unittest.TestCase):
         comp = open('__tmp.bin', 'rb')
         decomp = io.StringIO()
 
-        games = process_decode(
+        process_decode(
             comp, decomp, None, decode_rank, self.BATCH_SIZE
         )
 

@@ -7,9 +7,11 @@ import chess.pgn
 import math
 from typing import List, Dict
 import threading
+import copy
 
-from src.stats import Stats
-from src.utils import sort_moves, move_code, move_from_code, read_binary, write_binary, write_lines, read_lines, to_binary
+from stats import Stats
+from utils import sort_moves, move_code, move_from_code, read_binary, write_binary
+from utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
 
 BATCH_SIZE = int(1e5)
 
@@ -26,12 +28,15 @@ sem_read = threading.Semaphore()
 
 sem_stats = threading.Semaphore()
 
+
+
 def encode_rank(games: List[str], stats: Stats=None) -> bytes:
 
-    enc_data = bytes()
+    enc_data_out = bytes()
 
     for game_notation in games:
-
+        
+        enc_data = bytes()
         pgn = io.StringIO(game_notation)
         game: chess.pgn.ChildNode = chess.pgn.read_game(pgn)
 
@@ -44,6 +49,7 @@ def encode_rank(games: List[str], stats: Stats=None) -> bytes:
 
         score = SCORE_MAP[game.headers.get('Result')]
 
+        len_bef = len(enc_data)
         while game is not None:
 
             board = game.board()
@@ -63,23 +69,25 @@ def encode_rank(games: List[str], stats: Stats=None) -> bytes:
             if stats is not None:
                 stats.add_move(game.move, board)
 
-            _bin, _carry = to_binary(
+            _bin, _carry, bits = to_binary(
                 _bin, BIT_S, bits, move_no, k
             )
             if _carry >= 0:
                 enc_data += _bin.to_bytes(4, 'big')
                 _bin = _carry
 
+        if bits > 0:
+            _bin <<= (BIT_S - bits) % 8
+            enc_data += _bin.to_bytes(math.ceil(bits / 8), 'big')
 
-        _bin <<= (BIT_S - bits)
-        enc_data += _bin.to_bytes(4, 'big')
-    
+        pref = len(enc_data) - len_bef
+        pref <<= 3
+        pref += (BIT_S - bits) % 8
+        pref <<= 2
+        pref += score
+        enc_data_out += (pref.to_bytes(2, 'big') + enc_data)
 
-    pref = len(enc_data)
-    pref <<= 2
-    pref += score
-
-    return pref.to_bytes(2, 'big') + enc_data
+    return enc_data_out
 
 def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
 
@@ -90,58 +98,56 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
     while b_cnt < batch_size:
 
         byts = read_binary(buff, 2)
+        if not byts:
+            break
         enc_data += byts
-        bytes_no = byts >> 2
+        bytes_no = int.from_bytes(byts, 'big') >> 5
 
         enc_data += read_binary(buff, bytes_no)
         
         b_cnt += bytes_no
 
-    it = 0
-    while it < len(enc_data):
+    byte_it = 0
+    while byte_it < len(enc_data):
 
         game = chess.pgn.Game()
-        bits = BIT_S
-        _carry = int(0)
-        _bin = enc_data[it]
-        it+=1
+        _bin = int.from_bytes(enc_data[byte_it : byte_it + 2], 'big')
+        byte_it += 2
 
         score = REV_SCORE_MAP[_bin & (FOUR_1 >> BIT_S - 2)]
-        bytes_no = _bin >> 2
+        suff_off = (_bin >> 2) & (FOUR_1 >> BIT_S - 3)
+        bytes_no = _bin >> 5
+        offset = 0
 
-        _bin = enc_data[it]
-        it+=1
-        b_cnt = 6
-
+        b_cnt = 0
         while b_cnt < bytes_no:
             
             moves = sort_moves(list(game.board().legal_moves))
             moves_no = len(moves)
             k = math.floor(math.log2(moves_no)) + 1
 
-            if bits < k:
-                _carry = _bin >> (BIT_S - bits)
+            _take = math.ceil((offset + k) / 8)
+            off_r = (BIT_S - (offset + k)) % 8
 
-                _bin = enc_data[it]
-                it+=1
-                b_cnt += 4
-                _tmp = _bin>>(BIT_S - (k - bits))
-                __tmp = _carry<<(k - bits)
-                move = moves[__tmp + _tmp]
-                _bin &= (FOUR_1 >> (k - bits))
-                _bin <<= (k - bits)
-                bits = BIT_S - (k - bits)
+            idx = extract_move_idx(int.from_bytes(enc_data[byte_it : byte_it + _take], 'big'), off_r, k)
+            move = moves[idx]
 
-            else:  
-                move = moves[_bin >> (BIT_S - k)]
-                _bin &= (FOUR_1 >> (k))
-                _bin <<= (k)
-                bits -= k
+            if _take > 1:
+                b_cnt += 1
+                byte_it += 1
+                offset = (offset + k) % 8
+            else:
+                offset += k
 
             game = game.add_main_variation(move_from_code(move))
 
+            if b_cnt + 1 == bytes_no:
+                if (suff_off + offset) % 8 == 0:
+                    break
+
         game.game().headers["Result"] = score
         out = str(game.game())
+        byte_it += 1
 
         decoded_games.append(out[out.rfind('\n') + 1 : ])
 
@@ -150,9 +156,24 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
 
 def main():
 
-    pass
+    f = open(get_script_path() + '/../data/bin_test_file.txt', 'r')
+    games = f.readlines()
 
-    
+    games = [processLine(g) for g in games]
+
+    ref = copy.deepcopy(games)
+
+    c = open('__tmp.bin', 'wb')
+    c.write(encode_rank(games, None)) 
+
+    f.close()
+    c.close()
+
+    c = open('__tmp.bin', 'rb')
+
+    dec_games = decode_rank(c, BATCH_SIZE)
+
+    assert ref == dec_games, 'Not equal'
 
 if __name__ == "__main__":
 
