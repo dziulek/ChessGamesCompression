@@ -6,6 +6,7 @@ from typing import List, Dict, Callable, Tuple
 
 import chess
 import functools
+import time
 
 read_sem = threading.Semaphore()
 write_sem = threading.Semaphore()
@@ -25,6 +26,22 @@ def extract_move_idx(bin: int, off_b: int, k: int):
     mask = (bin >> off_b) & (FOUR_1 >> (BIT_S - k))
 
     return mask
+
+def time_elapsed():
+
+    def decorator(func: Callable):
+        @functools.wraps(func)
+        def wrap_time(*args, **kwargs):
+
+            start = time.time()
+
+            func(*args, **kwargs)
+
+            return time.time() - start
+        
+        return wrap_time
+    
+    return decorator
 
 def atomic_operation(sem: threading.Semaphore=None):
 
@@ -60,6 +77,7 @@ def read_binary(r_buff: io.TextIOWrapper, batch_size: int) -> bytes:
 def write_lines(w_buff: io.TextIOWrapper, lines: List[str]) -> None:
 
     w_buff.write('\n'.join(lines))
+    w_buff.write('\n')
 
 @atomic_operation(sem=write_bin_sem)
 def write_binary(w_buff: io.TextIOWrapper, data: bytes) -> None:
@@ -81,7 +99,16 @@ def processLine(line: str) -> str:
 
     if line[-1] == '\n':
         return line[:-1]
+    
     return line
+    
+def processLines(lines: List[str]) -> List[str]:
+
+    out = []
+    for line in lines:
+        out.append(processLine(line))
+
+    return out
 
 def sort_moves(moves: List[chess.Move]) -> None:
 

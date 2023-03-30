@@ -9,9 +9,8 @@ from typing import List, Dict
 import threading
 import copy
 
-from stats import Stats
-from utils import sort_moves, move_code, move_from_code, read_binary, write_binary
-from utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
+from src.utils import sort_moves, move_code, move_from_code, read_binary, write_binary
+from src.utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
 
 BATCH_SIZE = int(1e5)
 
@@ -30,7 +29,7 @@ sem_stats = threading.Semaphore()
 
 
 
-def encode_rank(games: List[str], stats: Stats=None) -> bytes:
+def encode_rank(games: List[str]) -> bytes:
 
     enc_data_out = bytes()
 
@@ -39,9 +38,6 @@ def encode_rank(games: List[str], stats: Stats=None) -> bytes:
         enc_data = bytes()
         pgn = io.StringIO(game_notation)
         game: chess.pgn.ChildNode = chess.pgn.read_game(pgn)
-
-        if stats is not None:
-            stats.add_game(game)
 
         bits = 0
         _bin = int(0)
@@ -66,9 +62,6 @@ def encode_rank(games: List[str], stats: Stats=None) -> bytes:
                 break
             move_no = moves.index(move_code(game.move))  
 
-            if stats is not None:
-                stats.add_move(game.move, board)
-
             _bin, _carry, bits = to_binary(
                 _bin, BIT_S, bits, move_no, k
             )
@@ -89,7 +82,7 @@ def encode_rank(games: List[str], stats: Stats=None) -> bytes:
 
     return enc_data_out
 
-def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
+def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False, games_objs=None) -> List[str]:
 
     decoded_games = []
 
@@ -146,6 +139,10 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int) -> List[str]:
                     break
 
         game.game().headers["Result"] = score
+
+        if return_games:
+            games_objs.append(copy.deepcopy(game.game()))
+
         out = str(game.game())
         byte_it += 1
 

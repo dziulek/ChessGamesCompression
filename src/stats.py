@@ -7,8 +7,10 @@ import os
 import time
 import functools
 import threading
+from typing import List, Dict, Callable
 
-from utils import atomic_operation, sem_stats
+from src.utils import atomic_operation, sem_stats
+
 
 WHITE_WINS = '1-0'
 BLACK_WINS = '0-1'
@@ -25,6 +27,7 @@ GAME_NO = 'Total number of games'
 RESULTS_DISTR = 'Distribution of results'
 PIECE_MOVE_FREQ = 'Piece movement frequency'
 COMPRESSION_TIME = 'Time to compress the file'
+DECOMPRESSION_TIME = 'Time to decompress the file'
 MOVE_DISTR_START = 'Start square move frequency'
 MOVE_DISTR_END = 'End square move frequency'
 
@@ -60,6 +63,7 @@ class Stats:
         self.__start = 0
         self.__end = 0
         self.compression_time = 0
+        self.decompression_time = 0
 
         self.metrics = {
             BITS_PER_MOVE: 0,
@@ -73,10 +77,10 @@ class Stats:
             PIECE_MOVE_FREQ: None,
             MOVE_DISTR_START: None,
             MOVE_DISTR_END: None,
-            COMPRESSION_TIME: 0            
+            COMPRESSION_TIME: 0,
+            DECOMPRESSION_TIME: 0         
         }
 
-    
     @atomic_operation(sem=sem_stats)
     def add_game(self, game: chess.pgn.Game) -> None:
 
@@ -105,7 +109,8 @@ class Stats:
         self.metrics[COMPRESSION_RATIO] = 1 - \
             self.metrics[FILE_SIZE_COMPRESSED] / self.metrics[FILE_SIZE_UNCOMPRESSED]
         
-        self.metrics[COMPRESSION_TIME] = self.compression_time  
+        self.metrics[COMPRESSION_TIME] = self.compression_time 
+        self.metrics[DECOMPRESSION_TIME] = self.decompression_time 
 
         self.metrics[PIECE_MOVE_FREQ] = self.move_distr_piece
         self.metrics[RESULTS_DISTR] = self.results_distr
@@ -139,6 +144,14 @@ class Stats:
         self.__end = time.time()
         self.compression_time = self.__end - self.__start
 
+    def set_compression_time(self, time: int):
+
+        self.compression_time = time
+
+    def set_decompression_time(self, time: int):
+
+        self.decompression_time = time
+
     def get_dict(self,):
 
         d = {}
@@ -152,3 +165,15 @@ class Stats:
     def get_json(self,):
 
         return json.dumps(self.get_dict())
+    
+    def include_games(self, games: List[chess.pgn.Game], verbose=False) -> None:
+
+        for game in games:
+
+            self.add_game(game)
+            while game is not None:
+                
+                if game.next() is not None:
+                    self.add_move(game.next().move, game.board())
+
+                game = game.next()
