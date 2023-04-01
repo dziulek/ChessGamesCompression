@@ -7,23 +7,28 @@ import time
 import json
 import chess
 import chess.pgn
+import datetime
 
 from src.utils import read_lines, write_lines, atomic_operation, write_binary, read_binary, filterLines
-from src.utils import time_elapsed, processLines
+from src.utils import time_elapsed, processLines, move_token_reg, thrash_token_reg, preprocess_lines
+from src.utils import compare_games
 from src.compressors import encode_rank, decode_rank
 from src.fast_naive import encode_naive, decode_naive
+from src.apm import apm_decode, apm_encode, move_transform
 from src.stats import Stats
+
 
 NUMBER_OF_THREADS = 6
 BATCH_SIZE = int(1e4)
 
+
+
 def process_encode(r_buff: io.TextIOWrapper, w_buff: io.TextIOWrapper, \
-                    func: Callable[[List[str]], bytes], batch_s: int):
+                    func: Callable[[List[str]], bytes], batch_s: int, \
+                    pre_transform: Tuple[Callable, Dict]):
 
     lines = read_lines(r_buff, batch_s)
-
-    filterLines(lines)
-    lines = processLines(lines)
+    lines = pre_transform[0](lines, **pre_transform[1])
 
     while lines is not None and len(lines) > 0:
         
@@ -31,8 +36,7 @@ def process_encode(r_buff: io.TextIOWrapper, w_buff: io.TextIOWrapper, \
 
         write_binary(w_buff, enc_data)
         lines = read_lines(r_buff, batch_s)
-        filterLines(lines)
-        lines = processLines(lines)
+        lines = pre_transform[0](lines, **pre_transform[1])
     
 
 def process_decode(r_buff: io.TextIOWrapper, w_buff: io.TextIOWrapper, 
@@ -51,8 +55,18 @@ def run_encode(r_buff: io.TextIOWrapper, w_buff: io.TextIOWrapper,
                func: Callable[[io.TextIOWrapper, List[str], Stats], bytes]=None,
                threads_no: int=1, batch_s=BATCH_SIZE):
 
+    transform_input = (
+        preprocess_lines, 
+        {
+            'regex_drop': thrash_token_reg,
+            'regex_take': move_token_reg,
+            'token_transform': move_transform
+        }
+    )
+
     threads = [
-        threading.Thread(target=process_encode, args=(r_buff, w_buff, func, batch_s)) for _ in range(threads_no)
+        threading.Thread(target=process_encode, args=(r_buff, w_buff, func, 
+                                                      batch_s, transform_input)) for _ in range(threads_no)
     ]
 
     for thread in threads:
@@ -93,11 +107,12 @@ def main():
     script_path = os.path.realpath(__file__)
     script_path = script_path[:script_path.rfind('/')]    
 
-    files = ['test_file.pgn']
+    files = ['lichess_db_standard_rated_2014-10.pgn']
 
     algorithms: Dict[str, Tuple[function, function]] = {
         'rank': (encode_rank, decode_rank),
-        'naive': (encode_naive, decode_naive)
+        'naive': (encode_naive, decode_naive),
+        'apm': (apm_encode, apm_decode)
     }
     
     dest_files = [file for file in files]
@@ -111,10 +126,11 @@ def main():
         global_stats[file] = {}
 
         for alg in algorithms:
+            print(alg)
             
             stats = Stats(file, dest_file)
 
-            #=======ENCODE===============================
+            print('=======ENCODE===============================')
             encoding_func, decoding_func = algorithms[alg]
 
             source_buff = open(file, 'r')
@@ -123,13 +139,13 @@ def main():
             compression_time = run_encode(
                 source_buff,
                 dest_buff,
-                encoding_func, 1, BATCH_SIZE
+                encoding_func, 4, BATCH_SIZE
             )
 
             source_buff.close()
             dest_buff.close()
 
-            #=======DECODE================================
+            print('=======DECODE================================')
             games = None
 
             source_buff = open(dest_file, 'rb')
@@ -138,7 +154,7 @@ def main():
             decompression_time = run_decode(
                 source_buff,
                 dest_buff,
-                decoding_func, 1, BATCH_SIZE, games
+                decoding_func, 4, BATCH_SIZE, games
             )
             source_buff.close()
             dest_buff.close()   
@@ -147,7 +163,8 @@ def main():
 
             games = g_buff.readlines()
             filterLines(games)
-            games = processLines(games)
+            games = processLines(games, regex_drop=thrash_token_reg, regex_take=move_token_reg, 
+                                 token_transform=move_transform)
             g_buff.close()
 
             for game in games:
@@ -159,22 +176,8 @@ def main():
             stats.set_metrics()
             global_stats[file][alg] = stats.get_dict()            
 
-            #========CHECK================================
-            
-            ref = open(file, 'r')
-            dec = open('__games.dec', 'r')
-            ref_str = ref.read()
-            dec_str = dec.read()
-
-            ref.close()
-            dec.close()
-
-            # assert ref_str.replace('\n', '') == dec_str.replace('\n', ''), 'NOT EQUAL'
-
-
-
-
-    with open(script_path + '/results/' + str(time.time())[-4:] + '.json', 'w') as f:
+    with open(script_path + '/results/' + datetime.datetime.today().strftime('%Y-%m-%d')
+              + '_' + str(time.time())[-4:] + '.json', 'w') as f:
 
         f.write(json.dumps(global_stats))
 

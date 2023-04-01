@@ -2,8 +2,9 @@ import unittest
 
 
 from src.compressors import encode_rank, decode_rank
-from src.utils import get_script_path, filterLines
+from src.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
 from experiments import process_encode, process_decode
+from src.apm import move_transform
 import io
 
 class Test_compression_rank(unittest.TestCase): 
@@ -14,6 +15,14 @@ class Test_compression_rank(unittest.TestCase):
         self.data_path = '/../test_data/test_file.txt'
         self.path = get_script_path()
         self.BATCH_SIZE = int(1e4)
+        self.transform = (
+            preprocess_lines,
+            {
+                'regex_drop': thrash_token_reg,
+                'regex_take': move_token_reg,
+                'token_transform': move_transform
+            }
+        )
 
     def test_process_encode_decode(self,):
 
@@ -21,7 +30,7 @@ class Test_compression_rank(unittest.TestCase):
         comp = open('__tmp.bin', 'wb') 
         
         process_encode(
-            comp, f, None, encode_rank, batch_s=self.BATCH_SIZE
+            comp, f, encode_rank, batch_s=self.BATCH_SIZE, pre_transform=self.transform
         )
 
         f.close()
@@ -29,17 +38,18 @@ class Test_compression_rank(unittest.TestCase):
 
         with open(self.path + self.data_path, 'r') as f:
             ref = f.readlines()
-            filterLines(ref)
-            ref = '\n'.join(ref)
+            ref = preprocess_lines(ref, **self.transform[1])
 
         comp = open('__tmp.bin', 'rb')
         decomp = io.StringIO()
 
         process_decode(
-            comp, decomp, None, decode_rank, self.BATCH_SIZE
+            comp, decomp, decode_rank, self.BATCH_SIZE
         )
 
         comp.close()
+
+        decomp = preprocess_lines(decomp, **self.transform[1])
         
         self.assertEqual(ref, decomp)
 

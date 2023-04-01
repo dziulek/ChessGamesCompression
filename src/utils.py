@@ -4,6 +4,9 @@ import io
 import threading
 from typing import List, Dict, Callable, Tuple
 
+import chess.pgn
+
+import re
 import chess
 import functools
 import time
@@ -20,6 +23,35 @@ POSSIBLE_SCORES = ["0-1", "1-0", "1/2-1/2"]
 FOUR_0 = 0x00000000
 FOUR_1 = 0xffffffff
 BIT_S = 32
+
+MOVE_REGEX = r'(O-O-O|O-O|[QKRBN]?([a-h]|[1-8])?x?[a-h][1-8]([#+]|=[QRBN][+#]?)?|1/2-1/2|1-0|0-1)'
+move_token_reg = re.compile(MOVE_REGEX)
+
+THRASH_REGEX = r'(\?|\!|\{[^{}]*\})'
+thrash_token_reg = re.compile(THRASH_REGEX)
+
+def compare_games(true: List[str], decompressed: List[str]) -> bool:
+
+    '''
+        Since game representation may be different
+        this function compares games of potentially 
+        different representations. 
+    '''
+
+    for g_true, g_dec in zip(true, decompressed):
+
+        a = str(chess.pgn.read_game(io.StringIO(g_true)))
+        b = str(chess.pgn.read_game(io.StringIO(g_dec)))
+        if a != b:
+            
+            return False
+        
+    return True
+
+def preprocess_lines(lines: List[str], **kwargs):
+
+    return processLines(filterLines(lines), **kwargs)
+    
 
 def extract_move_idx(bin: int, off_b: int, k: int):
 
@@ -88,25 +120,42 @@ def clearLine(line: str) -> str:
 
     pass
 
-def filterLines(lines: List[str]):
+def filterLines(lines: List[str]) -> List[str]:
 
     for i in range(len(lines) - 1, -1, -1):
 
         if len(lines[i]) < 2 or lines[i][0] == '[':
             lines.pop(i)
 
-def processLine(line: str) -> str:
+    return lines
 
-    if line[-1] == '\n':
-        return line[:-1]
+def processLine(line: str, regex_drop: re.Pattern=None,
+                regex_take: re.Pattern=None, token_transform: Callable=None) -> str:
+    out = line
+    if regex_drop is not None:
+        out = re.sub(regex_drop, '', out)
+    if regex_take is not None:
+        find_list = regex_take.findall(out)
+
+        out = ' '.join(t[0] for t in find_list)
+
+    if token_transform is not None:
+
+        tokens = [o.strip() for o in out.split(' ')]
+        tokens = token_transform(tokens)
+        out = ' '.join(tokens)
     
-    return line
+    if out[-1] == '\n':
+        return out[:-1]
     
-def processLines(lines: List[str]) -> List[str]:
+    return out
+    
+def processLines(lines: List[str], regex_drop: re.Pattern=None,
+                 regex_take: re.Pattern=None, token_transform: Callable=None) -> List[str]:
 
     out = []
     for line in lines:
-        out.append(processLine(line))
+        out.append(processLine(line, regex_drop, regex_take, token_transform))
 
     return out
 
@@ -162,6 +211,67 @@ def get_script_path() -> str:
 
     path = os.path.realpath(__file__)
     return path[: path.rfind('/')]
+
+def get_all_possible_moves(bits_per_move: int) -> List[str]:
+    '''
+        Function returns all possible moves which can be identified
+        in .pgn notation. The capture of the piece represented by
+        the character 'x', as well as check sign '+' and mate '#'
+        could be ommited.
+    '''
+    moves: List[str] = []
+    fa = ord('a')
+    pieces = ['Q', 'K', 'R', 'B', 'N']    
+
+    if bits_per_move >= 16:
+
+        # we can include illegal moves also which 
+        # won't be used -> easier implementation
+
+        # pawn moves
+        for i in range(8):
+            for j in range(8):
+                dest_field = chr(fa + i) + str(j + 1)
+                # regular forward pawn move
+                moves.append(dest_field)                
+                # capture left pawn move
+                moves.append(chr(fa + i + 1) + 'x' + dest_field)
+                # capture right pawn move
+                moves.append(chr(fa + i - 1) + 'x' + dest_field)
+
+                # piece move
+                for p in pieces:
+                    # no capture
+                    moves.append(p + dest_field)
+
+                    #no capture with row or column index
+                    for c in range(8):
+                        moves.append(p + chr(fa + c) + dest_field)
+                    for r in range(8):
+                        moves.append(p + str(r + 1) + dest_field)
+
+                    # capture
+                    moves.append(p + 'x' + dest_field)
+
+                    # capture with row or column index
+                    for c in range(8):
+                        moves.append(p + chr(fa + c) + 'x' + dest_field)
+                    for r in range(8):
+                        moves.append(p + str(r + 1) + 'x' + dest_field)
+
+        # promotions
+        for i in range(8):
+            for p in pieces:
+                moves.append(chr(fa + i) + '8=' + p)
+                moves.append(chr(fa + i) + '1=' + p)
+
+        moves.append('O-O-O')
+        moves.append('O-O')
+
+        for s in POSSIBLE_SCORES:
+            moves.append(s)
+
+        return moves
 
 def main():
 
