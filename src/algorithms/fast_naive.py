@@ -61,9 +61,11 @@ def encode_naive(games: List[str]) -> bytes:
         enc_data.append([])
         moves = game.split(' ')
                 
+        print(moves)
         for move in moves:
 
             move = move.strip()
+            if len(move) == 0: continue
             
             if move in set(POSSIBLE_SCORES + ['O-O-O', 'O-O']):
                 enc_data[-1].append(LOOKUP_TABLE[move])
@@ -135,20 +137,23 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
         byte_it += 2
 
         bytes_no = _bin >> 3
-        suff_off = _bin & (FOUR_1 >> (BIT_S - 3))
         offset = 0
         k = 5
 
-        notation = []
+        suff = _bin & (FOUR_1 >> (BIT_S - 3))
+        print(suff)
+
+        notation = ['']
         b_cnt = 0
         while b_cnt < bytes_no:   
-            
+
             _take = math.ceil((offset + k) / 8)
             off_r = (BIT_S - (offset + k)) % 8
 
             idx = extract_move_idx(int.from_bytes(enc_data[byte_it : byte_it + _take], 'big'), off_r, k)
             # print(notation)
             notation.append(REV_LOOKUP_TABLE[idx])
+            # print(notation[-1])
 
             if _take > 1:
                 b_cnt += 1
@@ -156,10 +161,15 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
                 offset = (offset + k) % 8
             else:
                 offset += k
+            
+            # if b_cnt  + 1 == bytes_no:
+            #     if (suff + offset) % 8 == 0:
+            #         assert notation[-1] in set(POSSIBLE_SCORES), 'ERROR asdfasdf'
 
-
-            if notation[-1] == '0-1' or notation[-1] == '1-0' or notation[-1] == '1/2-1/2':
+            if notation[-1] in set(POSSIBLE_SCORES):
                 break
+            
+            # print(off_r, offset, b_cnt, bytes_no, k, suff, notation[-1])                    
 
         game_str = ''
 
@@ -167,19 +177,22 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
         lmatched = reg.findall(notation)
         for match in lmatched:
             game_str += match[0] + ' '
-        print(game_str)
+        print('=====================================')
+        # print(game_str)
 
-        pgn = io.StringIO(game_str)
+        # pgn = io.StringIO(game_str)
 
-        game = chess.pgn.read_game(pgn)
+        # game = chess.pgn.read_game(pgn)
 
         if return_games:
-            games_objs.append(game.game())
+            games_objs.append(chess.pgn.read_game(io.StringIO(game_str)))
 
-        out = str(game.game())
+        # out = str(game.game())
         byte_it += 1
 
-        decoded_games.append(out[out.rfind('\n') + 1 : ])
+        # decoded_games.append(out[out.rfind('\n') + 1 : ])
+        decoded_games.append(game_str)
+        print(decoded_games[-1])
 
         # pgn.close()
 
