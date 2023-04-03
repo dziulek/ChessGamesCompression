@@ -61,7 +61,7 @@ def encode_naive(games: List[str]) -> bytes:
         enc_data.append([])
         moves = game.split(' ')
                 
-        print(moves)
+        # print(moves)
         for move in moves:
 
             move = move.strip()
@@ -84,7 +84,8 @@ def encode_naive(games: List[str]) -> bytes:
 
     BITS = 32
 
-    for data in enc_data:
+    for i, data in enumerate(enc_data):
+        print(i, data[0], end=' ')
         bin_data += data[0].to_bytes(2, 'big')
 
         occ_bits = 0
@@ -104,6 +105,7 @@ def encode_naive(games: List[str]) -> bytes:
         if occ_bits > 0:
             _bin <<= ((BIT_S - occ_bits)%8)
             bin_data += _bin.to_bytes(math.ceil(occ_bits / 8), 'big')
+            print(occ_bits, math.ceil(occ_bits / 8))
 
     return bin_data
 
@@ -115,6 +117,8 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
     REV_LOOKUP_TABLE = dict(zip(LOOKUP_TABLE.values(), LOOKUP_TABLE.keys()))
 
     decoded_games = []
+    bytes_nos = []
+    suffs = []
 
     enc_data = bytes()
     b_cnt = 0
@@ -123,25 +127,23 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
         byts = read_binary(buff, 2)
         if not byts:
             break
-        enc_data += byts
-        bytes_no = int.from_bytes(byts, 'big') >> 3
+        _bin = int.from_bytes(byts, 'big')
+        bytes_nos.append(_bin >> 3)
 
-        enc_data += read_binary(buff, bytes_no)
+        suffs.append(_bin & (FOUR_1 >> (BIT_S - 3)))
+
+        enc_data += read_binary(buff, bytes_nos[-1])
         
-        b_cnt += bytes_no
+        b_cnt += bytes_nos[-1]
 
     byte_it = 0
-    while byte_it < len(enc_data):
+    cnt = 0
+    for bytes_no, suff in zip(bytes_nos, suffs):
 
-        _bin = int.from_bytes(enc_data[byte_it : byte_it + 2], 'big')
-        byte_it += 2
-
-        bytes_no = _bin >> 3
         offset = 0
         k = 5
 
-        suff = _bin & (FOUR_1 >> (BIT_S - 3))
-        print(suff)
+        print(cnt, suff, bytes_no)
 
         notation = ['']
         b_cnt = 0
@@ -161,12 +163,9 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
                 offset = (offset + k) % 8
             else:
                 offset += k
-            
-            # if b_cnt  + 1 == bytes_no:
-            #     if (suff + offset) % 8 == 0:
-            #         assert notation[-1] in set(POSSIBLE_SCORES), 'ERROR asdfasdf'
 
             if notation[-1] in set(POSSIBLE_SCORES):
+                print('score')
                 break
             
             # print(off_r, offset, b_cnt, bytes_no, k, suff, notation[-1])                    
@@ -192,9 +191,10 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
 
         # decoded_games.append(out[out.rfind('\n') + 1 : ])
         decoded_games.append(game_str)
-        print(decoded_games[-1])
+        # print(decoded_games[-1])
 
         # pgn.close()
+        cnt += 1
 
     return decoded_games
 

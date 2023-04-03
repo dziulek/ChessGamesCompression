@@ -2857,9 +2857,6 @@
 [Opening "Caro-Kann Defense: Classical Variation, Main Line"]
 [TimeControl "300+8"]
 [Termination "Normal"]
-
-1. e4 c6 2. d4 d5 3. Nc3 dxe4 4. Nxe4 Bf5 5. Ng3 Bg6 6. h4 h6 7. h5 Bh7 8. Nf3 Nd7 9. Bd3 Bxd3 10. Qxd3 e6 11. Bd2 Qc7 12. O-O-O Ngf6 13. c4 Bd6 14. Ne4 Nxe4 15. Qxe4 Nf6 16. Qe2 Bf4 17. Ne5 Bxd2+ 18. Rxd2 O-O 19. g4 Rad8 20. f4 Nd7 21. g5 Nxe5 22. dxe5 Rxd2 23. Qxd2 hxg5 24. h6 Rd8 25. Qg2 f6 26. hxg7 Qxg7 27. exf6 Qxf6 28. fxg5 Qf4+ 29. Kb1 Rd2 30. Qh3 Qf5+ 31. Qxf5 exf5 32. Rf1 Rd4 33. b3 f4 34. Kc2 Kg7 35. Kc3 Re4 36. Kd3 Re5 37. Rxf4 Rxg5 38. Rd4 Rg3+ 39. Kc2 Rf3 40. Rd8 Rf2+ 41. Kb1 Rf7 42. Kb2 c5 43. Ka3 Kf6 44. Ka4 Ke7 45. Ra8 a6 46. Ka5 Rf2 47. a3 Ra2 48. Ka4 Kd7 49. Rh8 Kc6 50. Rh6+ Kc7 51. Rg6 Ra1 52. Rg3 Kc6 53. Rg6+ Kc7 54. Rg5 Kc6 55. Rg6+ Kc7 1-0
-
 [Event "Rated Bullet game"]
 [Site "https://lichess.org/1NRNgRhV"]
 [White "Parris4iv"]
@@ -6799,9 +6796,6 @@
 [Opening "Queen's Gambit Accepted: Gunsberg Defense"]
 [TimeControl "180+0"]
 [Termination "Normal"]
-
-1. d4 d5 2. c4 dxc4 3. Nf3 c5 4. Qa4+ Nc6 5. Qxc4 Nxd4 6. Qxc5 Nc6 7. e3 e5 8. Qc2 Nf6 9. Bb5 Bb4+ 10. Bd2 Bxd2+ 11. Nbxd2 O-O 12. O-O e4 13. Bxc6 bxc6 14. Nxe4 Bf5 15. Nxf6+ Qxf6 16. Qc5 Be4 17. Nd4 Qg6 18. f3 Bd3 19. Rfd1 Ba6 20. Qxc6 Qxc6 21. Nxc6 Bb7 22. Ne7+ Kh8 23. e4 h6 24. Rac1 Rfe8 25. Nf5 h5 26. Nd6 Re7 27. Nxb7 Rxb7 28. b3 a5 29. Rd2 a4 30. bxa4 Rxa4 31. Rdc2 Rba7 32. Rc7 Rxc7 33. Rxc7 Kg8 34. Rc2 Kh7 35. Kf2 Kg6 36. h3 Kg5 37. g3 f6 38. h4+ Kg6 39. Ke2 Kf7 40. Rd2 g5 41. hxg5 fxg5 42. Kf2 Kg6 43. Re2 Kf6 44. f4 gxf4 45. gxf4 h4 46. e5+ Kf5 47. Kf3 Rxf4+ 48. Kg2 Re4 49. Rxe4 Kxe4 50. e6 1-0
-
 [Event "Rated Classical game"]
 [Site "https://lichess.org/ZntB7GiC"]
 [White "Omnius"]
