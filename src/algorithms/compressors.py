@@ -9,8 +9,8 @@ from typing import List, Dict
 import threading
 import copy
 
-from src.utils import sort_moves, move_code, move_from_code, read_binary, write_binary
-from src.utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
+from src.algorithms.utils import sort_moves, move_code, move_from_code, read_binary, write_binary
+from src.algorithms.utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
 
 BATCH_SIZE = int(1e5)
 

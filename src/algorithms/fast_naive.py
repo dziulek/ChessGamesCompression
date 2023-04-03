@@ -6,9 +6,9 @@ import chess.pgn
 import copy
 
 from typing import List, Dict, Tuple, Callable
-from src.compressors import REV_SCORE_MAP, SCORE_MAP
-from src.utils import to_binary, read_binary, extract_move_idx, sort_moves, move_from_code
-from src.utils import processLine, get_script_path
+from src.algorithms.compressors import REV_SCORE_MAP, SCORE_MAP
+from src.algorithms.utils import to_binary, read_binary, extract_move_idx, sort_moves, move_from_code
+from src.algorithms.utils import processLine, get_script_path, MOVE_REGEX, POSSIBLE_SCORES
 
 import re
 
@@ -59,41 +59,18 @@ def encode_naive(games: List[str]) -> bytes:
     for game in games:
         
         enc_data.append([])
-        ind = 0
-        f_char = -1
-        b_cnt = 0
-        
-        len_bef = len(enc_data)
-        while ind < len(game):
+        moves = game.split(' ')
+                
+        for move in moves:
 
-            if game[ind] == '{':
-                while game[ind] != '}': ind+=1
-                ind += 1
+            move = move.strip()
+            
+            if move in set(POSSIBLE_SCORES + ['O-O-O', 'O-O']):
+                enc_data[-1].append(LOOKUP_TABLE[move])
                 continue
 
-            if game[ind] != ' ' and f_char == -1:
-                f_char = ind
-            
-            if game[ind] == ' ':
-
-                if game[f_char: ind].find('.') == -1:
-                    if game[f_char: ind].find('O-O-O') >= 0:
-                        enc_data[-1].append(LOOKUP_TABLE['O-O-O'])
-                        b_cnt += 1
-                    elif game[f_char: ind].find('O-O') >=0:
-                        enc_data[-1].append(LOOKUP_TABLE['O-O'])
-                        b_cnt += 1
-                    else:
-
-                        for c in game[f_char : ind]:
-                            if c == '!' or c == '?': continue
-                            enc_data[-1].append(LOOKUP_TABLE[c])
-                            b_cnt += 1
-                f_char = -1
-
-            ind += 1
-
-        enc_data[-1].append(LOOKUP_TABLE[game[f_char:]])
+            for c in move:
+                enc_data[-1].append(LOOKUP_TABLE[c])
             
         bits_no = 5 * len(enc_data[-1])
         bytes_no = math.ceil(bits_no / 8)
@@ -130,7 +107,7 @@ def encode_naive(games: List[str]) -> bytes:
 
 def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games_objs: List=None) -> List[str]:
 
-    MOVE_REGEX = r'O-O-O|O-O|(([QKRBN])?([a-h]|[1-8])?(x)?[a-h][1-8](([#+])|(=[QRBN]([+#])?))?)|1/2-1/2|1-0|0-1'
+
     reg = re.compile(MOVE_REGEX)
 
     REV_LOOKUP_TABLE = dict(zip(LOOKUP_TABLE.values(), LOOKUP_TABLE.keys()))
@@ -187,11 +164,10 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
         game_str = ''
 
         notation = ''.join(notation)
-        pos = 0
-        while pos < len(notation):
-            m = reg.match(notation, pos=pos)
-            game_str += notation[pos : m.end()] + ' '
-            pos = m.end()
+        lmatched = reg.findall(notation)
+        for match in lmatched:
+            game_str += match[0] + ' '
+        print(game_str)
 
         pgn = io.StringIO(game_str)
 
@@ -204,6 +180,8 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
         byte_it += 1
 
         decoded_games.append(out[out.rfind('\n') + 1 : ])
+
+        # pgn.close()
 
     return decoded_games
 

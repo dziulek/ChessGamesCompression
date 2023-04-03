@@ -210,7 +210,7 @@ def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, i
 def get_script_path() -> str:
 
     path = os.path.realpath(__file__)
-    return path[: path.rfind('/')]
+    return path[: path.rfind('algorithms')]
 
 def get_all_possible_moves(bits_per_move: int) -> List[str]:
     '''
@@ -262,8 +262,13 @@ def get_all_possible_moves(bits_per_move: int) -> List[str]:
         # promotions
         for i in range(8):
             for p in pieces:
+                # no capture
                 moves.append(chr(fa + i) + '8=' + p)
                 moves.append(chr(fa + i) + '1=' + p)
+                # with capture left
+                for j in range(8):
+                    moves.append(chr(fa + j) + 'x' + chr(fa + i) + '8=' + p)
+                    moves.append(chr(fa + j) + 'x' + chr(fa + i) + '1=' + p)
 
         moves.append('O-O-O')
         moves.append('O-O')

@@ -9,7 +9,7 @@ import functools
 import threading
 from typing import List, Dict, Callable
 
-from src.utils import atomic_operation, sem_stats
+from src.algorithms.utils import atomic_operation, sem_stats
 
 
 WHITE_WINS = '1-0'

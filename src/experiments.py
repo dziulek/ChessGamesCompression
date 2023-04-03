@@ -9,12 +9,12 @@ import chess
 import chess.pgn
 import datetime
 
-from src.utils import read_lines, write_lines, atomic_operation, write_binary, read_binary, filterLines
-from src.utils import time_elapsed, processLines, move_token_reg, thrash_token_reg, preprocess_lines
-from src.utils import compare_games
-from src.compressors import encode_rank, decode_rank
-from src.fast_naive import encode_naive, decode_naive
-from src.apm import apm_decode, apm_encode, move_transform
+from src.algorithms.utils import read_lines, write_lines, atomic_operation, write_binary, read_binary, filterLines
+from src.algorithms.utils import time_elapsed, processLines, move_token_reg, thrash_token_reg, preprocess_lines
+from src.algorithms.utils import compare_games
+from src.algorithms.compressors import encode_rank, decode_rank
+from src.algorithms.fast_naive import encode_naive, decode_naive
+from src.algorithms.apm import apm_decode, apm_encode, move_transform
 from src.stats import Stats
 
 
@@ -107,17 +107,17 @@ def main():
     script_path = os.path.realpath(__file__)
     script_path = script_path[:script_path.rfind('/')]    
 
-    files = ['lichess_db_standard_rated_2014-10.pgn']
+    files = ['test_file.pgn']
 
     algorithms: Dict[str, Tuple[function, function]] = {
-        'rank': (encode_rank, decode_rank),
-        'naive': (encode_naive, decode_naive),
+        # 'rank': (encode_rank, decode_rank),
+        # 'naive': (encode_naive, decode_naive),
         'apm': (apm_encode, apm_decode)
     }
     
     dest_files = [file for file in files]
-    files = [script_path + '/data/' + file for file in files]
-    dest_files = [script_path + '/compressed_data/' + file for file in dest_files]
+    files = [script_path + '/../data/' + file for file in files]
+    dest_files = [script_path + '/../compressed_data/' + file for file in dest_files]
 
     global_stats = {}
 
@@ -176,7 +176,7 @@ def main():
             stats.set_metrics()
             global_stats[file][alg] = stats.get_dict()            
 
-    with open(script_path + '/results/' + datetime.datetime.today().strftime('%Y-%m-%d')
+    with open(script_path + '/../results/' + datetime.datetime.today().strftime('%Y-%m-%d')
               + '_' + str(time.time())[-4:] + '.json', 'w') as f:
 
         f.write(json.dumps(global_stats))

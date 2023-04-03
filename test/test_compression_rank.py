@@ -1,11 +1,11 @@
 import unittest
 
 
-from src.compressors import encode_rank, decode_rank
-from src.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
-from experiments import process_encode, process_decode
-from src.apm import move_transform
-import io
+from src.algorithms.compressors import encode_rank, decode_rank
+from src.algorithms.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
+from src.experiments import process_encode, process_decode
+from src.algorithms.apm import move_transform
+import io, os, sys
 
 class Test_compression_rank(unittest.TestCase): 
 
@@ -30,7 +30,7 @@ class Test_compression_rank(unittest.TestCase):
         comp = open('__tmp.bin', 'wb') 
         
         process_encode(
-            comp, f, encode_rank, batch_s=self.BATCH_SIZE, pre_transform=self.transform
+            f, comp, encode_rank, batch_s=self.BATCH_SIZE, pre_transform=self.transform
         )
 
         f.close()
@@ -49,9 +49,11 @@ class Test_compression_rank(unittest.TestCase):
 
         comp.close()
 
-        decomp = preprocess_lines(decomp, **self.transform[1])
+        decomp = preprocess_lines(decomp.getvalue().split('\n'), **self.transform[1])
         
         self.assertEqual(ref, decomp)
+
+        os.remove('__tmp.bin')
 
     def test_compression_validity_multiple_theads(self,):
 

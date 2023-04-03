@@ -5,12 +5,12 @@ import numpy
 import io
 
 from typing import List, Dict, Tuple
-from src.utils import get_all_possible_moves, POSSIBLE_SCORES, read_binary
+from src.algorithms.utils import get_all_possible_moves, POSSIBLE_SCORES, read_binary
 
 import os
 import copy
 
-from src.utils import processLine, get_script_path
+from src.algorithms.utils import processLine, get_script_path
 
 import re
 
