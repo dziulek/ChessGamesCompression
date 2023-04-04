@@ -20,37 +20,34 @@ class Test_compression_rank(unittest.TestCase):
 
     def test_process_one_thread(self,):
 
-        f = open(self.path + self.data_path, 'r')
-        comp = open('__tmp.bin', 'wb') 
+        
+        with open(self.path + self.data_path, 'r') as f:
+            source_data = io.StringIO(initial_value=f.read())
+        source_data.seek(0)
+
+        comp = io.BytesIO()
+        comp.seek(0)
         
         self.encoder_one_thread.encode(
-            f, comp
+            source_data, comp
         )
+        print(comp.getvalue())
+        comp.seek(0)
 
-        f.close()
-        comp.close()
-
-        with open(self.path + self.data_path, 'r') as f:
-            ref = '\n'.join(f.readlines())
-            ref = self.encoder_one_thread.def_pgn_parser.transform(ref)
-        comp = open('__tmp.bin', 'rb')
-        decomp = open('__dec.txt', 'w')
+        ref = source_data.getvalue()
+        decomp = io.StringIO()
 
         self.encoder_one_thread.decode(
             comp, decomp
         )
+        decomp.seek(0)
 
-        comp.close()
-        decomp.close()
-
-        decomp = open('__dec.txt', 'r')        
         a = decomp.read()
         a = self.encoder_one_thread.def_pgn_parser.transform(a)
 
+        comp.close()
         decomp.close()
-        os.remove('__tmp.bin')
-        os.remove('__dec.txt')
-
+        source_data.close()
         self.assertEqual(ref, a)
 
     def test_compression_validity_multiple_theads(self,):

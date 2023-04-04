@@ -91,8 +91,8 @@ class Encoder:
                 out_stream: io.TextIOWrapper, in_tran: TransformIn=None, 
                 max_games=None, verbose=False):
 
-        file_path = in_stream.name
-        file_size = os.path.getsize(file_path)
+        # file_path = in_stream.name
+        # file_size = os.path.getsize(file_path)
 
         ub_games = max_games
         if ub_games is None: ub_games = np.inf
