@@ -27,8 +27,23 @@ BIT_S = 32
 MOVE_REGEX = r'(O-O-O|O-O|[QKRBN]?([a-h]|[1-8])?x?[a-h][1-8]([#+]|=[QRBN][+#]?)?|1/2-1/2|1-0|0-1)'
 move_token_reg = re.compile(MOVE_REGEX)
 
-THRASH_REGEX = r'(\?|\!|\{[^{}]*\})'
+THRASH_REGEX = r'(\?|\!|\{[^{}]*\}|\n)'
 thrash_token_reg = re.compile(THRASH_REGEX)
+
+def standard_png_move_extractor(_in: str) -> List[List[str]]:
+
+    move_token_reg = re.compile(MOVE_REGEX)
+    l = [[]]
+    find_list = re.findall(move_token_reg, _in)
+
+    for f in find_list:
+        if f[0] in set(POSSIBLE_SCORES):
+            l[-1].append(f[0])
+            l.append([])
+            continue
+        l[-1].append(f[0])
+
+    return l
 
 def compare_games(true: List[str], decompressed: List[str]) -> bool:
 

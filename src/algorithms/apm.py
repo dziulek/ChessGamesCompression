@@ -1,7 +1,8 @@
 import chess
 import chess.pgn
 
-import numpy
+
+import numpy as np
 import io
 
 from typing import List, Dict, Tuple
@@ -31,19 +32,15 @@ def move_transform(moves: List) -> str:
     
     return [re.sub(re.compile(r'\+|\#'), '', move) for move in moves]
 
-def apm_encode(games: List[str]):
+def encode_apm(games: List[List[str]]) -> bytes():
 
     enc_data = bytes()
 
     for game in games:
 
         enc_game = bytes()
-        moves = game.split(' ')
 
-        for move in moves:
-            
-            if move.find('.') >= 0:
-                continue
+        for move in game:
             enc_game += int.to_bytes(ALL_POSSIBLE_MOVES[move], 2, 'big')
 
         bytes_no = len(enc_game)
@@ -55,43 +52,50 @@ def apm_encode(games: List[str]):
     return enc_data
 
 
-def apm_decode(buff: io.TextIOWrapper, batch_s: int, return_games=False, games_objs: List=None) -> List[str]:
-
-    b_cnt = 0
-    enc_data = bytes()
-    game_sizes = []
-    dec_data_list = []
-    while b_cnt < batch_s:
+def decode_apm(data: bytes, return_games=False, games_objs: List=None) -> List[List[str]]:
         
-        pref = read_binary(buff, 2)
-        if not pref:
-            break
-        bytes_in_game = int.from_bytes(pref, 'big')
-        game_sizes.append(bytes_in_game)
-        enc_data += read_binary(buff, bytes_in_game)
-
-        b_cnt += bytes_in_game + 2
-        
-
     i = 0
-    for g in game_sizes:
+    byte_no = len(data)
+    output = []
+    while i < byte_no:
 
-        dec_data_list.append([])
-
+        bytes_in_game = int.from_bytes(data[i:i + 2], 'big')
+        i += 2
         start = i
-        while i - start < g:
+        moves = []
+        while i - start < bytes_in_game:
 
-            dec_data_list[-1].append(REV_ALL_POSSIBLE_MOVES[int.from_bytes(enc_data[i : i + 2], 'big')])
+            moves.append(REV_ALL_POSSIBLE_MOVES[int.from_bytes(data[i : i + 2], 'big')] + ' ')
             i += 2
 
         if return_games:
 
-            game = chess.pgn.read_game(io.StringIO(' '.join(dec_data_list[-1])))
+            game = chess.pgn.read_game(io.StringIO(' '.join(moves)))
             games_objs.append(copy.deepcopy(game.game()))
 
-        dec_data_list[-1] = ' '.join(dec_data_list[-1])
+        output.append(moves)
 
-    return dec_data_list
+    return output
+
+def read_games_apm(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
+
+    enc_data = bytes()
+    b_cnt = 0
+    g_cnt = 0
+    while b_cnt < batch_size and g_cnt < max_games:
+
+        b = r_buff.read(2)
+        if not b: break
+        g_cnt += 1
+        b_cnt += 2
+
+        enc_data += b
+        bytes_in_game = int.from_bytes(b, 'big')
+
+        enc_data += r_buff.read(bytes_in_game)
+        b_cnt += bytes_in_game
+
+    return enc_data, g_cnt
 
 def main():
 
@@ -104,14 +108,14 @@ def main():
     ref = copy.deepcopy(games)
 
     c = open('__tmp.bin', 'wb')
-    c.write(apm_encode(games)) 
+    c.write(encode_apm(games)) 
 
     f.close()
     c.close()
 
     c = open('__tmp.bin', 'rb')
 
-    dec_games = apm_decode(c, BATCH_SIZE)
+    dec_games = decode_apm(c, BATCH_SIZE)
 
     assert ref == dec_games, 'Not equal'
 

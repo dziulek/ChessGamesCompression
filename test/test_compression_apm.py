@@ -2,10 +2,8 @@ import unittest
 
 import src
 
-from src.algorithms.apm import apm_decode, apm_encode
 from src.algorithms.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
-from src.experiments import process_encode, process_decode
-from src.algorithms.apm import move_transform
+from src.algorithms.algorithm import Encoder
 import io, os, sys
 
 class Test_compression_rank(unittest.TestCase): 
@@ -16,45 +14,44 @@ class Test_compression_rank(unittest.TestCase):
         self.data_path = '/../test_data/test_file.txt'
         self.path = get_script_path()
         self.BATCH_SIZE = int(1e4)
-        self.transform = (
-            preprocess_lines,
-            {
-                'regex_drop': thrash_token_reg,
-                'regex_take': move_token_reg,
-                'token_transform': move_transform
-            }
-        )
 
-    def test_process_encode_decode(self,):
+        self.encoder_one_thread = Encoder('apm', thread_no=1, batch_size=self.BATCH_SIZE)
+        self.encoder_mul_threads = Encoder('apm', thread_no=4, batch_size=self.BATCH_SIZE)
+
+    def test_process_one_thread(self,):
 
         f = open(self.path + self.data_path, 'r')
         comp = open('__tmp.bin', 'wb') 
         
-        process_encode(
-            f, comp, apm_encode, batch_s=self.BATCH_SIZE, pre_transform=self.transform
+        self.encoder_one_thread.encode(
+            f, comp
         )
 
         f.close()
         comp.close()
 
         with open(self.path + self.data_path, 'r') as f:
-            ref = f.readlines()
-            ref = preprocess_lines(ref, **self.transform[1])
-
+            ref = '\n'.join(f.readlines())
+            ref = self.encoder_one_thread.def_pgn_parser.transform(ref)
         comp = open('__tmp.bin', 'rb')
-        decomp = io.StringIO()
+        decomp = open('__dec.txt', 'w')
 
-        process_decode(
-            comp, decomp, apm_decode, self.BATCH_SIZE
+        self.encoder_one_thread.decode(
+            comp, decomp
         )
 
         comp.close()
+        decomp.close()
 
-        decomp = preprocess_lines(decomp.getvalue().split('\n'), **self.transform[1])
+        decomp = open('__dec.txt', 'r')        
+        a = decomp.read()
+        a = self.encoder_one_thread.def_pgn_parser.transform(a)
 
-        self.assertEqual(ref, decomp)
-
+        decomp.close()
         os.remove('__tmp.bin')
+        os.remove('__dec.txt')
+
+        self.assertEqual(ref, a)
 
     def test_compression_validity_multiple_theads(self,):
 
