@@ -1,6 +1,8 @@
 import unittest
 
 import src
+import multiprocessing
+import copy
 
 from src.algorithms.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
 from src.algorithms.algorithm import Encoder
@@ -18,8 +20,39 @@ class Test_compression_rank(unittest.TestCase):
         self.encoder_one_thread = Encoder('apm', thread_no=1, batch_size=self.BATCH_SIZE)
         self.encoder_mul_threads = Encoder('apm', thread_no=4, batch_size=self.BATCH_SIZE)
 
-    def test_process_one_thread(self,):
+    def __simple_worker(self, Q):
 
+        data = ''
+        while 1:
+
+            d = Q.get()
+            if d == 'kill': break
+            else: data += d
+        
+        return data
+
+    def test_reader(self,):
+
+        encoder = Encoder('apm', batch_size=self.BATCH_SIZE)
+
+        with open(self.path + self.data_path, 'r') as f:
+            source_data = io.StringIO(initial_value=f.read())
+
+        ref_data = source_data
+        Q = multiprocessing.Queue()
+
+        reader = multiprocessing.Process(target=encoder._Encoder__reader, args=(self.path + self.data_path, Q, False, None))
+        worker = multiprocessing.Process(target=self.__simple_worker, args=(Q,))
+
+        worker.start()
+        reader.start()
+
+        worker.join()
+        reader.join()
+
+        self.assertEqual(ref_data.getvalue(), out_data.getvalue())
+
+    def test_process_one_thread(self,):
         
         with open(self.path + self.data_path, 'r') as f:
             source_data = io.StringIO(initial_value=f.read())
