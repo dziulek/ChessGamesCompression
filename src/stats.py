@@ -3,7 +3,7 @@ import chess
 import chess.pgn
 import threading
 import json
-import os
+import os, io
 import time
 import functools
 import threading
@@ -81,13 +81,11 @@ class Stats:
             DECOMPRESSION_TIME: 0         
         }
 
-    @atomic_operation(sem=sem_stats)
     def add_game(self, game: chess.pgn.Game) -> None:
 
         self.game_no += 1
         self.results_distr[game.headers["Result"]] += 1
 
-    @atomic_operation(sem=sem_stats)
     def add_move(self, move: chess.Move, board: chess.Board) -> None:
 
         uci = move.uci()
@@ -166,9 +164,27 @@ class Stats:
 
         return json.dumps(self.get_dict())
     
-    def include_games(self, games: List[chess.pgn.Game], verbose=False) -> None:
+    def include_games(self, games, sep_games=None, verbose=False) -> None:
 
-        for game in games:
+        if type(games) == str:
+            
+            if sep_games is None: raise ValueError
+
+            games_list_str = games.split(sep_games)
+
+            _g = [chess.pgn.read_game(io.StringIO(g)) for g in games_list_str if g]
+
+        if type(games) == list:
+
+            if type(games[0]) == str:
+
+                _g = [chess.pgn.read_game(io.StringIO(g)) for g in games if g]
+            
+            if type(games[0]) == chess.pgn.Game:
+
+                _g = games
+
+        for game in _g:
 
             self.add_game(game)
             while game is not None:

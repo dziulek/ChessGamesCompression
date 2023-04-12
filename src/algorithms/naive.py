@@ -4,9 +4,10 @@ import math
 import chess
 import chess.pgn
 import copy
+import numpy as np
 
 from typing import List, Dict, Tuple, Callable
-from src.algorithms.compressors import REV_SCORE_MAP, SCORE_MAP
+from src.algorithms.rank import REV_SCORE_MAP, SCORE_MAP
 from src.algorithms.utils import to_binary, read_binary, extract_move_idx, sort_moves, move_from_code
 from src.algorithms.utils import processLine, get_script_path, MOVE_REGEX, POSSIBLE_SCORES
 
@@ -51,7 +52,7 @@ LOOKUP_TABLE = {
     '0-1': 0x1D
 }
 
-def encode_naive(games: List[str]) -> bytes:
+def encode_naive(games: List[List[str]]) -> bytes:
 
     enc_data: List[List[int]] = []
     bin_data = bytes()
@@ -59,13 +60,9 @@ def encode_naive(games: List[str]) -> bytes:
     for game in games:
         
         enc_data.append([])
-        moves = game.split(' ')
                 
         # print(moves)
-        for move in moves:
-
-            move = move.strip()
-            if len(move) == 0: continue
+        for move in game:
             
             if move in set(POSSIBLE_SCORES + ['O-O-O', 'O-O']):
                 enc_data[-1].append(LOOKUP_TABLE[move])
@@ -85,7 +82,6 @@ def encode_naive(games: List[str]) -> bytes:
     BITS = 32
 
     for i, data in enumerate(enc_data):
-        print(i, data[0], end=' ')
         bin_data += data[0].to_bytes(2, 'big')
 
         occ_bits = 0
@@ -105,11 +101,10 @@ def encode_naive(games: List[str]) -> bytes:
         if occ_bits > 0:
             _bin <<= ((BIT_S - occ_bits)%8)
             bin_data += _bin.to_bytes(math.ceil(occ_bits / 8), 'big')
-            print(occ_bits, math.ceil(occ_bits / 8))
 
     return bin_data
 
-def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games_objs: List=None) -> List[str]:
+def decode_naive(enc_data: bytes, return_games=False, games_objs: List=None) -> List[str]:
 
 
     reg = re.compile(MOVE_REGEX)
@@ -120,42 +115,32 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
     bytes_nos = []
     suffs = []
 
-    enc_data = bytes()
     b_cnt = 0
-    while b_cnt < batch_s:
-
-        byts = read_binary(buff, 2)
-        if not byts:
-            break
-        _bin = int.from_bytes(byts, 'big')
-        bytes_nos.append(_bin >> 3)
-
-        suffs.append(_bin & (FOUR_1 >> (BIT_S - 3)))
-
-        enc_data += read_binary(buff, bytes_nos[-1])
-        
-        b_cnt += bytes_nos[-1]
 
     byte_it = 0
     cnt = 0
-    for bytes_no, suff in zip(bytes_nos, suffs):
+    while byte_it < len(enc_data):
 
         offset = 0
         k = 5
 
-        print(cnt, suff, bytes_no)
+        pref = int.from_bytes(enc_data[byte_it : byte_it + 2], byteorder='big')
+        bytes_in_game = pref >> 3
 
-        notation = ['']
+        byte_it += 2
+
+        # not necessary yet
+        suff_off = pref & (FOUR_1 >> (BIT_S - 3))
+
+        notation = []
         b_cnt = 0
-        while b_cnt < bytes_no:   
+        while b_cnt < bytes_in_game:   
 
             _take = math.ceil((offset + k) / 8)
             off_r = (BIT_S - (offset + k)) % 8
 
             idx = extract_move_idx(int.from_bytes(enc_data[byte_it : byte_it + _take], 'big'), off_r, k)
-            # print(notation)
             notation.append(REV_LOOKUP_TABLE[idx])
-            # print(notation[-1])
 
             if _take > 1:
                 b_cnt += 1
@@ -165,38 +150,47 @@ def decode_naive(buff: io.TextIOWrapper, batch_s: int, return_games=False, games
                 offset += k
 
             if notation[-1] in set(POSSIBLE_SCORES):
-                print('score')
                 break
             
-            # print(off_r, offset, b_cnt, bytes_no, k, suff, notation[-1])                    
-
-        game_str = ''
+        moves = []
 
         notation = ''.join(notation)
         lmatched = reg.findall(notation)
         for match in lmatched:
-            game_str += match[0] + ' '
-        print('=====================================')
-        # print(game_str)
-
-        # pgn = io.StringIO(game_str)
-
-        # game = chess.pgn.read_game(pgn)
+            moves.append(match[0])
 
         if return_games:
-            games_objs.append(chess.pgn.read_game(io.StringIO(game_str)))
+            games_objs.append(chess.pgn.read_game(io.StringIO(' '.join(moves))))
 
-        # out = str(game.game())
         byte_it += 1
 
-        # decoded_games.append(out[out.rfind('\n') + 1 : ])
-        decoded_games.append(game_str)
-        # print(decoded_games[-1])
+        decoded_games.append(moves)
 
-        # pgn.close()
         cnt += 1
 
     return decoded_games
+
+def read_games_naive(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
+
+    enc_data = bytes()
+    b_cnt = 0
+    g_cnt = 0
+
+    while b_cnt < batch_size and g_cnt < max_games:
+
+        byts = r_buff.read(2)
+        if not byts: break
+
+        g_cnt += 1
+        b_cnt += 2
+        enc_data += byts
+        bytes_no = int.from_bytes(byts, 'big') >> 3
+
+        enc_data += r_buff.read(bytes_no)
+        
+        b_cnt += bytes_no        
+
+    return enc_data, g_cnt
 
 def main():
 

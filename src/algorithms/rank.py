@@ -5,7 +5,7 @@ import io
 import chess
 import chess.pgn
 import math
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import threading
 import copy
 
@@ -29,14 +29,14 @@ sem_stats = threading.Semaphore()
 
 
 
-def encode_rank(games: List[str]) -> bytes:
+def encode_rank(games: List[List[str]]) -> bytes:
 
     enc_data_out = bytes()
 
     for game_notation in games:
         
         enc_data = bytes()
-        pgn = io.StringIO(game_notation)
+        pgn = io.StringIO(' '.join(game_notation))
         game: chess.pgn.ChildNode = chess.pgn.read_game(pgn)
 
         bits = 0
@@ -82,23 +82,9 @@ def encode_rank(games: List[str]) -> bytes:
 
     return enc_data_out
 
-def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False, games_objs=None) -> List[str]:
+def decode_rank(enc_data: bytes, return_games: int=False, games_objs=None) -> List[List[str]]:
 
     decoded_games = []
-
-    enc_data = bytes()
-    b_cnt = 0
-    while b_cnt < batch_size:
-
-        byts = read_binary(buff, 2)
-        if not byts:
-            break
-        enc_data += byts
-        bytes_no = int.from_bytes(byts, 'big') >> 5
-
-        enc_data += read_binary(buff, bytes_no)
-        
-        b_cnt += bytes_no
 
     byte_it = 0
     while byte_it < len(enc_data):
@@ -113,6 +99,8 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False
         offset = 0
 
         b_cnt = 0
+
+        g_moves = []
         while b_cnt < bytes_no:
             
             moves = sort_moves(list(game.board().legal_moves))
@@ -125,6 +113,8 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False
             idx = extract_move_idx(int.from_bytes(enc_data[byte_it : byte_it + _take], 'big'), off_r, k)
             move = moves[idx]
 
+            # g_moves.append(move)
+
             if _take > 1:
                 b_cnt += 1
                 byte_it += 1
@@ -133,6 +123,7 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False
                 offset += k
 
             game = game.add_main_variation(move_from_code(move))
+            g_moves.append(game.move.uci())
 
             if b_cnt + 1 == bytes_no:
                 if (suff_off + offset) % 8 == 0:
@@ -143,12 +134,33 @@ def decode_rank(buff: io.TextIOWrapper, batch_size: int, return_games: int=False
         if return_games:
             games_objs.append(copy.deepcopy(game.game()))
 
-        out = str(game.game())
         byte_it += 1
 
-        decoded_games.append(out[out.rfind('\n') + 1 : ])
+        decoded_games.append(g_moves + [score])
 
     return decoded_games
+
+def read_games_rank(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
+
+    enc_data = bytes()
+    b_cnt = 0
+    g_cnt = 0
+
+    while b_cnt < batch_size and g_cnt < max_games:
+
+        byts = r_buff.read(2)
+        if not byts: break
+
+        g_cnt += 1
+        b_cnt += 2
+        enc_data += byts
+        bytes_no = int.from_bytes(byts, 'big') >> 5
+
+        enc_data += r_buff.read(bytes_no)
+        
+        b_cnt += bytes_no        
+
+    return enc_data, g_cnt
 
 
 def main():

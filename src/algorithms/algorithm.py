@@ -1,14 +1,18 @@
 import io, os, sys
 
 from src.algorithms.transform import TransformIn, TransformOut
-from src.algorithms.utils import read_binary, write_binary, standard_png_move_extractor, write_lines
+from src.algorithms.utils import read_binary, write_binary, standard_png_move_extractor
+from src.stats import Stats
 
-import src.algorithms.compressors, src.algorithms.fast_naive
+import src.algorithms.rank, src.algorithms.naive
 from src.algorithms import apm
 import multiprocessing
 from multiprocessing import Value, Array
 from typing import Callable, List, Dict
 
+from src import logger
+
+import importlib
 import numpy as np
 import re
 
@@ -16,17 +20,17 @@ import ctypes
 
 class Encoder:
 
-    def __init__(self, alg='apm', thread_no=1, batch_size=1e4) -> None:
+    def __init__(self, alg='apm', par_workers=1, batch_size=1e4) -> None:
         
         self.alg = alg
-        self.thread_no = thread_no
+        self.par_workers = par_workers
         self.batch_size = batch_size
         self.thresh_for_mult_threads = 1e6
 
         self.__THRASH_REGEX = re.compile(r'(\?|\!|\{[^{}]*\}|\[[^\[\]]*\]|\n|\#|\+)')
 
-        self.def_pgn_parser = TransformIn(standard_png_move_extractor, self.__THRASH_REGEX)# TODO add default move extractor
-        self.def_out_format = TransformOut()# TODO add default output format transform
+        self.def_pgn_parser = TransformIn(standard_png_move_extractor, self.__THRASH_REGEX)
+        self.def_out_format = TransformOut() # default output format transform
 
         self.__bytes_read_tot = Value(ctypes.c_int32, 0)
         self.__games_cnt = Value(ctypes.c_int32, 0)
@@ -34,49 +38,70 @@ class Encoder:
         self.dest_lock = multiprocessing.Lock()
         self.source_lock = multiprocessing.Lock()
 
-    def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf):
+        self.module_alg = importlib.import_module('src.algorithms.' + alg)
 
-        with open(path, 'r') as in_stream:
+        self.current_file = None
+
+    def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
+        _m = 'r'
+        if binary: _m = 'rb'
+
+        file_size = os.path.getsize(path)
+
+        if verbose:
+            # print progress bar
+            logger.printProgressBar(0, file_size, prefix='Progress', suffix='Complete')
+
+        with open(path, _m) as in_stream:
 
             while 1:
 
-                if not Q.empty(): continue
+                if not Q.qsize() < 5: continue
                 
-                in_stream.flush()
                 if binary:
 
-                    read_games = getattr(apm, 'read_games_' + self.alg)
+                    read_games = getattr(self.module_alg, 'read_games_' + self.alg)
                     enc_data, g_no = read_games(in_stream, self.batch_size, max_games)
 
                     if not enc_data:
                         break
 
                     Q.put(tuple([enc_data, g_no]))
-                    self.__bytes_read_tot.value += len(enc_data)
+                    with self.__bytes_read_tot.get_lock():
+                        self.__bytes_read_tot.value += len(enc_data)
 
                 else: 
                     d = ''.join(in_stream.readlines(self.batch_size))
                     if not d: break
                     Q.put(d)
-                self.__bytes_read_tot.value += len(d)
+                
+                    with self.__bytes_read_tot.get_lock():
+                        self.__bytes_read_tot.value += len(d)
+
+                if verbose:
+                    with self.__bytes_read_tot.get_lock():
+                        logger.printProgressBar(
+                            self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
+                        )
         
-        for _ in range(self.thread_no): Q.put('kill')
+        for _ in range(self.par_workers): Q.put('kill')
 
-    def __writer(self, out_stream: io.TextIOWrapper, Q: multiprocessing.Queue, binary=False, max_games=np.inf):
+    def __writer(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
+        
+        _f = 'w'
+        if binary: _f = 'wb'
 
-        while 1:
-            d = Q.get()
-            if d == 'kill': break
+        file_size = os.path.getsize(self.current_file)
 
-            out_stream.flush()
-            if binary:
-                enc_data = d
-                out_stream.write(enc_data)
-            else: 
-                out_stream.write(d)
+        with open(path, _f) as f:
+            while 1:
+                d = Q.get()
+                if d == 'kill': break
 
-    def __process_encode(self, q_read: multiprocessing.Queue,
-                        q_write: multiprocessing.Queue, in_tran: TransformIn=None,
+                f.write(d)            
+
+    def __process_encode(self, Q_data: multiprocessing.Queue,
+                        Q_enc: multiprocessing.Queue, in_tran: TransformIn=None,
                         verbose=False):
 
         parser = in_tran if in_tran is not None else self.def_pgn_parser
@@ -85,89 +110,106 @@ class Encoder:
 
         while moves is not None:
             
-            data = q_read.get()
+            data = Q_data.get()
 
             if data == 'kill': break
 
             moves = parser.transform(data)
-            _encoder: Callable[[List[List[str]]], bytes] = getattr(apm, 'encode_' + self.alg)
+            _encoder: Callable[[List[List[str]]], bytes] = getattr(self.module_alg, 'encode_' + self.alg)
 
             enc_data = _encoder(moves)
-            q_write.put(enc_data)
+            Q_enc.put(enc_data)
 
-    def __process_decode(self, Q_read: multiprocessing.Queue,
-                        Q_write: multiprocessing.Queue, out_tran: TransformOut=None,
+    def __process_decode(self, Q_enc: multiprocessing.Queue,
+                        Q_dec: multiprocessing.Queue, out_tran: TransformOut=None,
                         verbose=False, max_games=np.inf):
 
-        parser = out_tran if out_tran is not None else self.def_out_format
+        concatenator = out_tran if out_tran is not None else self.def_out_format
 
         while 1:
             
-            d = Q_read.get()
+            d = Q_enc.get()
             if d == 'kill': break
 
             enc_data, g_no = d
 
-            _decoder: Callable[[bytes], List[List[str]]] = getattr(apm, 'decode_' + self.alg)
+            _decoder: Callable[[bytes], List[List[str]]] = getattr(self.module_alg, 'decode_' + self.alg)
             dec_data = _decoder(enc_data)
+            dec_data_str = concatenator.transform(dec_data)
 
-            Q_write.put(dec_data)
-
-
-    def encode(self, in_stream: io.TextIOWrapper,
-                out_stream: io.TextIOWrapper, in_tran: TransformIn=None, 
+            Q_dec.put(dec_data_str)
+        
+    def encode(self, in_stream: str,
+                out_stream: str, in_tran: TransformIn=None, 
                 max_games=None, verbose=False):
 
-        # file_path = in_stream.name
-        # file_size = os.path.getsize(file_path)
+        self.current_file = in_stream
+
+        self.__bytes_read_tot.value = 0
+        if verbose:
+            print('Compressing file', in_stream)
 
         ub_games = max_games
         if ub_games is None: ub_games = np.inf
 
-        manager = multiprocessing.Manager()
-        Q_read = manager.Queue()    
-        Q_write = manager.Queue()
-        pool = multiprocessing.Pool(multiprocessing.cpu_count() + 2)
+        Q_data = multiprocessing.Queue()    
+        Q_enc = multiprocessing.Queue()
 
-        writer = pool.apply_async(self.__writer, (out_stream, Q_read, True, max_games))
-        reader = pool.apply_async(self.__reader, (in_stream, Q_write, False, max_games))
+        writer = multiprocessing.Process(target=self.__writer, args=(out_stream, Q_enc, True, max_games, verbose))
+        reader = multiprocessing.Process(target=self.__reader, args=(in_stream, Q_data, False, max_games, verbose))
 
-        jobs = []
-        for _ in range(self.thread_no):
-            job = pool.apply_async(self.__process_encode, (Q_read, Q_write, in_tran, verbose))
-            jobs.append(job)
+        reader.start()
+        writer.start()
 
-        # for job in jobs: job.get()
+        workers: List[multiprocessing.Process] = []
+        for _ in range(self.par_workers):
+            workers.append(multiprocessing.Process(target=self.__process_encode, args=(Q_data, Q_enc, in_tran, verbose)))
+            workers[-1].start()
 
-        Q_write.put('kill')
-        pool.close()
-        pool.join()
+        reader.join()
 
-    def decode(self, in_stream: io.TextIOWrapper,
-                out_stream: io.TextIOWrapper, out_tran: TransformOut=None,
+        for worker in workers: worker.join()
+        
+        Q_enc.put('kill')
+
+        writer.join()
+
+        self.current_file = None
+
+    def decode(self, in_stream: str,
+                out_stream: str, out_tran: TransformOut=None,
                 max_games=np.inf, verbose=False):
 
-        # file_path = in_stream.name
-        # file_size = os.path.getsize(file_path)
+        self.current_file = in_stream
 
+        self.__bytes_read_tot.value = 0
         ub_games = max_games
         if ub_games is None: ub_games = np.inf
 
-        manager = multiprocessing.Manager()
-        Q_read = manager.Queue()    
-        Q_write = manager.Queue()
-        pool = multiprocessing.Pool(multiprocessing.cpu_count() + 2)
+        Q_dec = multiprocessing.Queue()    
+        Q_enc = multiprocessing.Queue()
 
-        writer = pool.apply_async(self.__writer, (out_stream, Q_read, False, ub_games))
-        reader = pool.apply_async(self.__reader, (in_stream, Q_write, True, ub_games))
+        writer = multiprocessing.Process(target=self.__writer, args=(out_stream, Q_dec, False, ub_games, verbose))
+        reader = multiprocessing.Process(target=self.__reader, args=(in_stream, Q_enc, True, ub_games, verbose))
 
-        jobs = []
-        for _ in range(self.thread_no):
-            job = pool.apply_async(self.__process_decode, (Q_read, Q_write, out_tran, verbose))
-            jobs.append(job)
+        reader.start()
+        writer.start()
 
-        Q_write.put('kill')
-        pool.close()
-        pool.join()
+        if verbose:
+            print('Decompressing file', in_stream)
+        workers: List[multiprocessing.Process] = []
+        for _ in range(self.par_workers):
+            workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
+            workers[-1].start()
+
+        reader.join()
+
+        for w in workers: w.join()
+
+        Q_dec.put('kill')
+
+        writer.join()
+
+        self.current_file = None
 
 

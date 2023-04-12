@@ -8,24 +8,24 @@ from src.algorithms.utils import get_script_path, preprocess_lines, move_token_r
 from src.algorithms.algorithm import Encoder
 import io, os, sys
 
-class Test_compression_rank(unittest.TestCase): 
+class Test_compression_apm(unittest.TestCase): 
 
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
 
-        self.data_path = '/../test_data/test_file.txt'
+        self.data_path = '/../test_data/test_file.pgn'
         self.path = get_script_path()
         self.BATCH_SIZE = int(1e4)
 
-        self.encoder_one_thread = Encoder('apm', thread_no=1, batch_size=self.BATCH_SIZE)
-        self.encoder_mul_threads = Encoder('apm', thread_no=4, batch_size=self.BATCH_SIZE)
+        self.encoder_one_worker = Encoder('apm', par_workers=1, batch_size=self.BATCH_SIZE)
+        self.encoder_mul_workers = Encoder('apm', par_workers=4, batch_size=self.BATCH_SIZE)
 
-    def __simple_worker(self, Q):
+    def __simple_worker(self, Q_in, Q_out):
 
         data = ''
         while 1:
 
-            d = Q.get()
+            d = Q_in.get()
             if d == 'kill': break
             else: data += d
         
@@ -36,56 +36,118 @@ class Test_compression_rank(unittest.TestCase):
         encoder = Encoder('apm', batch_size=self.BATCH_SIZE)
 
         with open(self.path + self.data_path, 'r') as f:
-            source_data = io.StringIO(initial_value=f.read())
+            source_data = f.read()
 
         ref_data = source_data
         Q = multiprocessing.Queue()
 
-        reader = multiprocessing.Process(target=encoder._Encoder__reader, args=(self.path + self.data_path, Q, False, None))
-        worker = multiprocessing.Process(target=self.__simple_worker, args=(Q,))
-
-        worker.start()
+        reader = multiprocessing.Process(target=encoder._Encoder__reader, 
+                                         args=(self.path + self.data_path, Q, False, None))
         reader.start()
+        
+        out_data = ''
+        while 1:
+            d = Q.get()
+            if d == 'kill': break
+            out_data += d
 
-        worker.join()
         reader.join()
 
-        self.assertEqual(ref_data.getvalue(), out_data.getvalue())
+        self.assertEqual(ref_data, out_data)
 
     def test_process_one_thread(self,):
         
-        with open(self.path + self.data_path, 'r') as f:
-            source_data = io.StringIO(initial_value=f.read())
-        source_data.seek(0)
+        file_path = self.path + self.data_path
+        enc_file_name = '__tmp.bin'
 
-        comp = io.BytesIO()
-        comp.seek(0)
+        source_data = None
+
+        with open(file_path, 'r') as f:
+            source_data = f.read()
+            source_data = self.encoder_one_worker.def_out_format.transform(
+                self.encoder_one_worker.def_pgn_parser.transform(source_data)
+            )
+
+        self.assertIsNotNone(source_data)
+
+        # encode the file
+        self.encoder_one_worker.encode(
+            file_path, enc_file_name
+        )
         
-        self.encoder_one_thread.encode(
-            source_data, comp
+        self.assertEqual(True, enc_file_name in set(os.listdir()))
+
+        alg_output_file = '__dec.txt'
+        self.encoder_one_worker.decode(
+            enc_file_name, alg_output_file
         )
-        print(comp.getvalue())
-        comp.seek(0)
 
-        ref = source_data.getvalue()
-        decomp = io.StringIO()
+        self.assertEqual(True, alg_output_file in set(os.listdir()))
 
-        self.encoder_one_thread.decode(
-            comp, decomp
+        with open(alg_output_file, 'r') as f:
+            dec_data = f.readlines()
+            dec_data = [g.strip() for g in dec_data]
+
+        source_data = source_data.strip().split('\n')   
+
+        self.assertEqual(len(source_data), len(dec_data))
+
+        for g_dec, g_src in zip(dec_data, source_data):
+            self.assertEqual(g_dec, g_src,
+                             msg=repr(g_dec) + '\n' + repr(g_src))
+                
+
+        os.remove(alg_output_file)
+        os.remove(enc_file_name)
+
+    def test_process_mul_threads(self,):
+
+        file_path = self.path + self.data_path
+        enc_file_name = '__tmp.bin'
+
+        source_data = None
+
+        with open(file_path, 'r') as f:
+            source_data = f.read()
+            source_data = self.encoder_mul_workers.def_out_format.transform(
+                self.encoder_mul_workers.def_pgn_parser.transform(source_data)
+            )
+
+        self.assertIsNotNone(source_data)
+
+        # encode the file
+        self.encoder_mul_workers.encode(
+            file_path, enc_file_name
         )
-        decomp.seek(0)
+        
+        self.assertEqual(True, enc_file_name in set(os.listdir()))
 
-        a = decomp.read()
-        a = self.encoder_one_thread.def_pgn_parser.transform(a)
+        alg_output_file = '__dec.txt'
+        self.encoder_mul_workers.decode(
+            enc_file_name, alg_output_file
+        )
 
-        comp.close()
-        decomp.close()
-        source_data.close()
-        self.assertEqual(ref, a)
+        self.assertEqual(True, alg_output_file in set(os.listdir()))
 
-    def test_compression_validity_multiple_theads(self,):
+        with open(alg_output_file, 'r') as f:
+            dec_data = f.readlines()
+            dec_data = [g.strip() for g in dec_data]
 
-        pass 
+        source_data = source_data.strip().split('\n')   
+
+        self.assertEqual(len(source_data), len(dec_data))
+
+        # sort the games, they can be permutated
+        source_data.sort()
+        dec_data.sort()
+
+        for g_dec, g_src in zip(dec_data, source_data):
+            self.assertEqual(g_dec, g_src,
+                             msg=repr(g_dec) + '\n' + repr(g_src))
+                
+        os.remove(alg_output_file)
+        os.remove(enc_file_name)
+
 
 if __name__ == "__main__":
 

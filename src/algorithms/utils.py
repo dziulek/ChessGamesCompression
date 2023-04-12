@@ -43,9 +43,11 @@ def standard_png_move_extractor(_in: str) -> List[List[str]]:
             continue
         l[-1].append(f[0])
 
+    if len(l[-1]) == 0: l.pop()
+
     return l
 
-def compare_games(true: List[str], decompressed: List[str]) -> bool:
+def compare_games(true: str, decompressed: str) -> bool:
 
     '''
         Since game representation may be different
@@ -53,13 +55,27 @@ def compare_games(true: List[str], decompressed: List[str]) -> bool:
         different representations. 
     '''
 
-    for g_true, g_dec in zip(true, decompressed):
+    a = chess.pgn.read_game(io.StringIO(true))
+    b = chess.pgn.read_game(io.StringIO(decompressed))
 
-        a = str(chess.pgn.read_game(io.StringIO(g_true)))
-        b = str(chess.pgn.read_game(io.StringIO(g_dec)))
-        if a != b:
-            
-            return False
+    a = a.next()
+    b = b.next()
+
+    if a.game().headers['Result'] != b.game().headers['Result']: return False
+
+    while a is not None:
+
+        move_a = a.move
+        if b is None: return False
+
+        move_b = b.move
+
+        if move_a.uci() != move_b.uci(): return False
+
+        a = a.next()
+        b = b.next()
+        
+    if b is not None: return False
         
     return True
 

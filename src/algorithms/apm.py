@@ -36,9 +36,13 @@ def encode_apm(games: List[List[str]]) -> bytes():
 
     enc_data = bytes()
 
+
     for game in games:
 
         enc_game = bytes()
+
+        if len(game) == 0:
+            continue
 
         for move in game:
             enc_game += int.to_bytes(ALL_POSSIBLE_MOVES[move], 2, 'big')
@@ -65,7 +69,7 @@ def decode_apm(data: bytes, return_games=False, games_objs: List=None) -> List[L
         moves = []
         while i - start < bytes_in_game:
 
-            moves.append(REV_ALL_POSSIBLE_MOVES[int.from_bytes(data[i : i + 2], 'big')] + ' ')
+            moves.append(REV_ALL_POSSIBLE_MOVES[int.from_bytes(data[i : i + 2], 'big')])
             i += 2
 
         if return_games:
