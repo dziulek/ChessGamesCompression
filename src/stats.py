@@ -5,12 +5,7 @@ import threading
 import json
 import os, io
 import time
-import functools
 import threading
-from typing import List, Dict, Callable
-
-from src.algorithms.utils import atomic_operation, sem_stats
-
 
 WHITE_WINS = '1-0'
 BLACK_WINS = '0-1'

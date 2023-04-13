@@ -9,9 +9,7 @@ import chess
 import chess.pgn
 import datetime
 
-from src.algorithms.utils import read_lines, write_lines, atomic_operation, write_binary, read_binary, filterLines
-from src.algorithms.utils import time_elapsed, processLines, move_token_reg, thrash_token_reg, get_script_path
-from src.algorithms.apm import move_transform
+from src.algorithms.utils import get_script_path
 from src.stats import Stats
 from src.algorithms.algorithm import Encoder
 
@@ -26,7 +24,7 @@ def main():
 
     files = ['lichess_db_standard_rated_2014-10.pgn']
 
-    algorithms: List[str] = ['naive', 'rank', 'apm']
+    algorithms: List[str] = ['apm']
     
     dest_files = [file for file in files]
     files = [script_path + '../data/' + file for file in files]

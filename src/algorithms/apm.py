@@ -6,20 +6,12 @@ import numpy as np
 import io
 
 from typing import List, Dict, Tuple
-from src.algorithms.utils import get_all_possible_moves, POSSIBLE_SCORES, read_binary
+from src.algorithms.utils import get_all_possible_moves
 
 import os
 import copy
 
-from src.algorithms.utils import processLine, get_script_path
-
 import re
-
-MOVE_REGEX = r'(O-O-O|O-O|[QKRBN]?([a-h]|[1-8])?x?[a-h][1-8]([#+]|=[QRBN][+#]?)?|1/2-1/2|1-0|0-1)'
-move_token_reg = re.compile(MOVE_REGEX)
-
-THRASH_REGEX = r'(\?|\!|\{.*\})'
-thrash_token_reg = re.compile(THRASH_REGEX)
 
 BATCH_SIZE = int(1e4)
 
@@ -100,33 +92,3 @@ def read_games_apm(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=n
         b_cnt += bytes_in_game
 
     return enc_data, g_cnt
-
-def main():
-
-    f = open(get_script_path() + '/../data/bin_test_file.txt', 'r')
-    games = f.readlines()
-
-    games = [processLine(g, regex_drop=thrash_token_reg, 
-                         regex_take=move_token_reg, token_transform=move_transform) for g in games]
-
-    ref = copy.deepcopy(games)
-
-    c = open('__tmp.bin', 'wb')
-    c.write(encode_apm(games)) 
-
-    f.close()
-    c.close()
-
-    c = open('__tmp.bin', 'rb')
-
-    dec_games = decode_apm(c, BATCH_SIZE)
-
-    assert ref == dec_games, 'Not equal'
-
-    c.close()
-
-    os.remove('__tmp.bin')
-
-if __name__ == "__main__":
-
-    main()

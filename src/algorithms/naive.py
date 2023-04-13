@@ -7,17 +7,12 @@ import copy
 import numpy as np
 
 from typing import List, Dict, Tuple, Callable
-from src.algorithms.rank import REV_SCORE_MAP, SCORE_MAP
-from src.algorithms.utils import to_binary, read_binary, extract_move_idx, sort_moves, move_from_code
+from src.algorithms.utils import to_binary, extract_move_idx, FOUR_1, FOUR_0, BIT_S 
 from src.algorithms.utils import processLine, get_script_path, MOVE_REGEX, POSSIBLE_SCORES
 
 import re
 
 BATCH_SIZE = int(1e4)
-
-FOUR_0 = 0x00000000
-FOUR_1 = 0xffffffff
-BIT_S = 32
 
 LOOKUP_TABLE = {
     'a': 0x0,
@@ -112,8 +107,6 @@ def decode_naive(enc_data: bytes, return_games=False, games_objs: List=None) -> 
     REV_LOOKUP_TABLE = dict(zip(LOOKUP_TABLE.values(), LOOKUP_TABLE.keys()))
 
     decoded_games = []
-    bytes_nos = []
-    suffs = []
 
     b_cnt = 0
 
@@ -191,32 +184,3 @@ def read_games_naive(r_buff: io.TextIOWrapper, batch_size: int, max_games: float
         b_cnt += bytes_no        
 
     return enc_data, g_cnt
-
-def main():
-
-    f = open(get_script_path() + '/../data/bin_test_file.txt', 'r')
-    games = f.readlines()
-
-    games = [processLine(g) for g in games]
-
-    ref = copy.deepcopy(games)
-
-    c = open('__tmp.bin', 'wb')
-    c.write(encode_naive(games, None)) 
-
-    f.close()
-    c.close()
-
-    c = open('__tmp.bin', 'rb')
-
-    dec_games = decode_naive(c, BATCH_SIZE)
-
-    assert ref == dec_games, 'Not equal'
-
-    c.close()
-
-    os.remove('__tmp.bin')
-
-if __name__ == "__main__":
-
-    main()

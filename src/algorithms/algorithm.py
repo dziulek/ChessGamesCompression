@@ -42,6 +42,8 @@ class Encoder:
 
         self.current_file = None
 
+        self.curr_descriptor = None
+
     def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
         _m = 'r'
         if binary: _m = 'rb'
@@ -138,7 +140,7 @@ class Encoder:
             dec_data_str = concatenator.transform(dec_data)
 
             Q_dec.put(dec_data_str)
-        
+
     def encode(self, in_stream: str,
                 out_stream: str, in_tran: TransformIn=None, 
                 max_games=None, verbose=False):
@@ -212,4 +214,37 @@ class Encoder:
 
         self.current_file = None
 
+    def decode_batch_of_games(self, path: str, output_path: str, N: int, out_tran: TransformOut, verbose: bool):
 
+        if self.curr_descriptor is not None:
+
+            if path != self.curr_descriptor.name:
+
+                if not self.curr_descriptor.closed: self.curr_descriptor.close()
+
+        else: self.curr_descriptor = open(path, 'rb')
+
+        read_games = getattr(self.module_alg, 'read_games_' + self.alg)
+        enc_data, g_no = read_games(self.curr_descriptor, self.batch_size, N)
+
+        Q_dec = multiprocessing.Queue()    
+        Q_enc = multiprocessing.Queue()
+
+        writer = multiprocessing.Process(target=self.__writer, args=(output_path, Q_dec, False, np.inf, verbose))
+
+        writer.start()
+
+        if verbose:
+            print('Decompressing file', self.curr_descriptor.name)
+        workers: List[multiprocessing.Process] = []
+        for _ in range(self.par_workers):
+            workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
+            workers[-1].start()
+
+        for w in workers: w.join()
+
+        Q_dec.put('kill')
+
+        writer.join()
+
+        self.current_file = None

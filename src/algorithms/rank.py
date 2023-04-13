@@ -9,25 +9,13 @@ from typing import List, Dict, Tuple
 import threading
 import copy
 
-from src.algorithms.utils import sort_moves, move_code, move_from_code, read_binary, write_binary
-from src.algorithms.utils import get_script_path, write_lines, read_lines, to_binary, processLine, extract_move_idx
+from src.algorithms.utils import sort_moves, move_code, move_from_code, FOUR_0, FOUR_1, BIT_S
+from src.algorithms.utils import get_script_path, to_binary, processLine, extract_move_idx
 
 BATCH_SIZE = int(1e5)
 
 SCORE_MAP = {'1-0': 0, '0-1': 1, '1/2-1/2': 2}
 REV_SCORE_MAP = {0: '1-0', 1: '0-1', 2: '1/2-1/2'}
-
-FOUR_0 = 0x00000000
-FOUR_1 = 0xffffffff
-BIT_S = 32
-
-BUFF_SEM = threading.Semaphore()
-sem_write = threading.Semaphore()
-sem_read = threading.Semaphore()
-
-sem_stats = threading.Semaphore()
-
-
 
 def encode_rank(games: List[List[str]]) -> bytes:
 
@@ -161,29 +149,3 @@ def read_games_rank(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=
         b_cnt += bytes_no        
 
     return enc_data, g_cnt
-
-
-def main():
-
-    f = open(get_script_path() + '/../data/bin_test_file.txt', 'r')
-    games = f.readlines()
-
-    games = [processLine(g) for g in games]
-
-    ref = copy.deepcopy(games)
-
-    c = open('__tmp.bin', 'wb')
-    c.write(encode_rank(games, None)) 
-
-    f.close()
-    c.close()
-
-    c = open('__tmp.bin', 'rb')
-
-    dec_games = decode_rank(c, BATCH_SIZE)
-
-    assert ref == dec_games, 'Not equal'
-
-if __name__ == "__main__":
-
-    main()

@@ -11,13 +11,6 @@ import chess
 import functools
 import time
 
-read_sem = threading.Semaphore()
-write_sem = threading.Semaphore()
-write_bin_sem = threading.Semaphore()
-read_bin_sem = threading.Semaphore()
-
-sem_stats = threading.Semaphore()
-
 POSSIBLE_SCORES = ["0-1", "1-0", "1/2-1/2"]
 
 FOUR_0 = 0x00000000
@@ -25,10 +18,10 @@ FOUR_1 = 0xffffffff
 BIT_S = 32
 
 MOVE_REGEX = r'(O-O-O|O-O|[QKRBN]?([a-h]|[1-8])?x?[a-h][1-8]([#+]|=[QRBN][+#]?)?|1/2-1/2|1-0|0-1)'
-move_token_reg = re.compile(MOVE_REGEX)
+# move_token_reg = re.compile(MOVE_REGEX)
 
 THRASH_REGEX = r'(\?|\!|\{[^{}]*\}|\n)'
-thrash_token_reg = re.compile(THRASH_REGEX)
+# thrash_token_reg = re.compile(THRASH_REGEX)
 
 def standard_png_move_extractor(_in: str) -> List[List[str]]:
 
@@ -125,31 +118,6 @@ def atomic_operation(sem: threading.Semaphore=None):
         return wrap_semaphore
 
     return decorator
-
-@atomic_operation(sem=read_sem)
-def read_lines(r_buff: io.TextIOWrapper, batch_size: int) -> List[str]:
-
-    return r_buff.readlines(batch_size)
-
-@atomic_operation(sem=read_bin_sem)
-def read_binary(r_buff: io.TextIOWrapper, batch_size: int) -> bytes:
-
-    return r_buff.read(batch_size)
-
-@atomic_operation(sem=write_sem)
-def write_lines(w_buff: io.TextIOWrapper, lines: List[str]) -> None:
-
-    w_buff.write('\n'.join(lines))
-    w_buff.write('\n')
-
-@atomic_operation(sem=write_bin_sem)
-def write_binary(w_buff: io.TextIOWrapper, data: bytes) -> None:
-
-    w_buff.write(data)
-
-def clearLine(line: str) -> str:
-
-    pass
 
 def filterLines(lines: List[str]) -> List[str]:
 
