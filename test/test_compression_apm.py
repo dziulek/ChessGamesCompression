@@ -4,7 +4,7 @@ import src
 import multiprocessing
 import copy
 
-from src.algorithms.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg
+from src.algorithms.utils import get_script_path
 from src.algorithms.algorithm import Encoder
 import io, os, sys
 
@@ -19,17 +19,6 @@ class Test_compression_apm(unittest.TestCase):
 
         self.encoder_one_worker = Encoder('apm', par_workers=1, batch_size=self.BATCH_SIZE)
         self.encoder_mul_workers = Encoder('apm', par_workers=4, batch_size=self.BATCH_SIZE)
-
-    def __simple_worker(self, Q_in, Q_out):
-
-        data = ''
-        while 1:
-
-            d = Q_in.get()
-            if d == 'kill': break
-            else: data += d
-        
-        return data
 
     def test_reader(self,):
 

@@ -1,7 +1,7 @@
 import io, os, sys
 
 from src.algorithms.transform import TransformIn, TransformOut
-from src.algorithms.utils import read_binary, write_binary, standard_png_move_extractor
+from src.algorithms.utils import standard_png_move_extractor
 from src.stats import Stats
 
 import src.algorithms.rank, src.algorithms.naive

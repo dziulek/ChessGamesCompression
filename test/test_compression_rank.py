@@ -1,10 +1,7 @@
 import unittest
 
 
-from src.algorithms.rank import encode_rank, decode_rank
-from src.algorithms.utils import get_script_path, preprocess_lines, move_token_reg, thrash_token_reg, compare_games
-from experiments import process_encode, process_decode
-from src.algorithms.apm import move_transform
+from src.algorithms.utils import get_script_path, compare_games
 import io, os, sys, multiprocessing
 
 from src.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
@@ -16,7 +13,7 @@ class Test_compression_rank(unittest.TestCase):
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
 
-        self.data_path = '../data/lichess_db_standard_rated_2014-10.pgn'
+        self.data_path = '../test_data/test_file.pgn'
         self.path = get_script_path()
         self.BATCH_SIZE = int(1e4)
 
