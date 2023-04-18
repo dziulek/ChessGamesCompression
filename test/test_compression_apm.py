@@ -5,7 +5,7 @@ import multiprocessing
 import copy
 
 from src.algorithms.utils import get_script_path
-from src.algorithms.algorithm import Encoder
+from src.algorithms.encoder import Encoder
 import io, os, sys
 
 class Test_compression_apm(unittest.TestCase): 

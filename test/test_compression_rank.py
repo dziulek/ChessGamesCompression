@@ -6,7 +6,7 @@ import io, os, sys, multiprocessing
 
 from src.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
 
-from src.algorithms.algorithm import Encoder
+from src.algorithms.encoder import Encoder
 
 class Test_compression_rank(unittest.TestCase): 
 

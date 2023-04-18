@@ -42,7 +42,17 @@ class Encoder:
 
         self.current_file = None
 
-        self.curr_descriptor = None
+        # parameters for open mode
+        self.curr_path_name = None
+        self.open_mode = False
+        self.ptr_pos = 0
+
+    def __del__(self,) -> None:
+
+        if self.curr_descriptor is not None:
+
+            if not self.curr_descriptor.closed:
+                self.curr_descriptor.close()
 
     def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
         _m = 'r'
@@ -54,7 +64,11 @@ class Encoder:
             # print progress bar
             logger.printProgressBar(0, file_size, prefix='Progress', suffix='Complete')
 
+        games_left = max_games
+
         with open(path, _m) as in_stream:
+
+            if self.open_mode and binary: in_stream.seek(self.ptr_pos)
 
             while 1:
 
@@ -63,14 +77,19 @@ class Encoder:
                 if binary:
 
                     read_games = getattr(self.module_alg, 'read_games_' + self.alg)
-                    enc_data, g_no = read_games(in_stream, self.batch_size, max_games)
-
+                    enc_data, g_no = read_games(in_stream, self.batch_size, games_left)
+                    games_left -= g_no
+                    
                     if not enc_data:
                         break
 
                     Q.put(tuple([enc_data, g_no]))
                     with self.__bytes_read_tot.get_lock():
                         self.__bytes_read_tot.value += len(enc_data)
+                        if self.open_mode: self.ptr_pos += len(enc_data)
+
+                    if games_left == 0:
+                        break
 
                 else: 
                     d = ''.join(in_stream.readlines(self.batch_size))
@@ -85,7 +104,8 @@ class Encoder:
                         logger.printProgressBar(
                             self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
                         )
-        
+                
+
         for _ in range(self.par_workers): Q.put('kill')
 
     def __writer(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
@@ -145,6 +165,7 @@ class Encoder:
                 out_stream: str, in_tran: TransformIn=None, 
                 max_games=None, verbose=False):
 
+        self.open_mode = False
         self.current_file = in_stream
 
         self.__bytes_read_tot.value = 0
@@ -182,6 +203,7 @@ class Encoder:
                 out_stream: str, out_tran: TransformOut=None,
                 max_games=np.inf, verbose=False):
 
+        self.open_mode = False
         self.current_file = in_stream
 
         self.__bytes_read_tot.value = 0
@@ -214,37 +236,17 @@ class Encoder:
 
         self.current_file = None
 
-    def decode_batch_of_games(self, path: str, output_path: str, N: int, out_tran: TransformOut, verbose: bool):
+    def decode_batch_of_games(self, path: str, output_path: str, N: int, out_tran: TransformOut=None, verbose: bool=False):
 
-        if self.curr_descriptor is not None:
+        self.open_mode = True
+        if self.curr_path_name is not None:
 
-            if path != self.curr_descriptor.name:
+            if path != self.curr_path_name:
 
-                if not self.curr_descriptor.closed: self.curr_descriptor.close()
+                self.ptr_pos = 0
 
-            else: self.curr_descriptor = open(path, 'rb')
+                self.curr_path_name = path
 
-        else: self.curr_descriptor = open(path, 'rb')
+        else: self.curr_path_name = path
 
-        read_games = getattr(self.module_alg, 'read_games_' + self.alg)
-        enc_data, g_no = read_games(self.curr_descriptor, self.batch_size, N)
-
-        Q_dec = multiprocessing.Queue()    
-        Q_enc = multiprocessing.Queue()
-
-        writer = multiprocessing.Process(target=self.__writer, args=(output_path, Q_dec, False, np.inf, verbose))
-
-        writer.start()
-
-        if verbose:
-            print('Decoding', g_no , 'of games from file', self.curr_descriptor.name)
-        workers: List[multiprocessing.Process] = []
-        for _ in range(self.par_workers):
-            workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
-            workers[-1].start()
-
-        for w in workers: w.join()
-
-        Q_dec.put('kill')
-
-        writer.join()
+        self.decode(path, output_path, out_tran, N, verbose)
