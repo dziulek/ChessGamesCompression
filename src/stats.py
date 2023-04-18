@@ -28,8 +28,18 @@ MOVE_DISTR_END = 'End square move frequency'
 
 class Stats:
 
-    def __init__(self, path_data: str, path_encoded, sem: threading.Semaphore=None) -> None:
+    """
+        The class provides basic tools for some statistics collected
+        from number of chess games.
+    """
 
+    def __init__(self, path_data: str, path_encoded, sem: threading.Semaphore=None) -> None:
+        """
+            Arguments:
+                * path_data: path of the source file to be encoded
+                * path_encoded: path of the encoded file
+                * sem: deprecated 
+        """
         self.instance_semaphore = threading.Semaphore()
         self.path_data = path_data
         self.path_encoded = path_encoded

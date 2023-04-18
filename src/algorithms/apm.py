@@ -75,7 +75,8 @@ def decode_apm(data: bytes, return_games=False, games_objs: List=None) -> List[L
 
 def read_games_apm(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
 
-    enc_data = bytes()
+    enc_data = bytearray(2 * batch_size)
+    head = 0
     b_cnt = 0
     g_cnt = 0
     while b_cnt < batch_size and g_cnt < max_games:
@@ -85,10 +86,12 @@ def read_games_apm(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=n
         g_cnt += 1
         b_cnt += 2
 
-        enc_data += b
+        enc_data[head : head + 2] = b
+        head += 2
         bytes_in_game = int.from_bytes(b, 'big')
 
-        enc_data += r_buff.read(bytes_in_game)
+        enc_data[head : head + bytes_in_game] = r_buff.read(bytes_in_game)
+        head += bytes_in_game
         b_cnt += bytes_in_game
 
-    return enc_data, g_cnt
+    return enc_data[:head], g_cnt

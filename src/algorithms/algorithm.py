@@ -222,6 +222,8 @@ class Encoder:
 
                 if not self.curr_descriptor.closed: self.curr_descriptor.close()
 
+            else: self.curr_descriptor = open(path, 'rb')
+
         else: self.curr_descriptor = open(path, 'rb')
 
         read_games = getattr(self.module_alg, 'read_games_' + self.alg)
@@ -235,7 +237,7 @@ class Encoder:
         writer.start()
 
         if verbose:
-            print('Decompressing file', self.curr_descriptor.name)
+            print('Decoding', g_no , 'of games from file', self.curr_descriptor.name)
         workers: List[multiprocessing.Process] = []
         for _ in range(self.par_workers):
             workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
@@ -246,5 +248,3 @@ class Encoder:
         Q_dec.put('kill')
 
         writer.join()
-
-        self.current_file = None

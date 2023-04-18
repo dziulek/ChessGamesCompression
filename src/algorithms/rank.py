@@ -130,22 +130,25 @@ def decode_rank(enc_data: bytes, return_games: int=False, games_objs=None) -> Li
 
 def read_games_rank(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
 
-    enc_data = bytes()
+    enc_data = bytearray(2 * batch_size)
+    head = 0
     b_cnt = 0
     g_cnt = 0
 
     while b_cnt < batch_size and g_cnt < max_games:
 
-        byts = r_buff.read(2)
+        byts = r_buff.read(2)   
         if not byts: break
 
         g_cnt += 1
         b_cnt += 2
-        enc_data += byts
+        enc_data[head : head + 2] = byts
+        head += 2
         bytes_no = int.from_bytes(byts, 'big') >> 5
 
-        enc_data += r_buff.read(bytes_no)
+        enc_data[head: head + bytes_no] = r_buff.read(bytes_no)
+        head += bytes_no
         
         b_cnt += bytes_no        
 
-    return enc_data, g_cnt
+    return enc_data[:head], g_cnt

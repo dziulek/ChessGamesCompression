@@ -165,7 +165,8 @@ def decode_naive(enc_data: bytes, return_games=False, games_objs: List=None) -> 
 
 def read_games_naive(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
 
-    enc_data = bytes()
+    enc_data = bytearray(batch_size)
+    head = 0
     b_cnt = 0
     g_cnt = 0
 
@@ -176,11 +177,12 @@ def read_games_naive(r_buff: io.TextIOWrapper, batch_size: int, max_games: float
 
         g_cnt += 1
         b_cnt += 2
-        enc_data += byts
+        enc_data[head : head + 2] = byts
+        head += 2
         bytes_no = int.from_bytes(byts, 'big') >> 3
 
-        enc_data += r_buff.read(bytes_no)
-        
+        enc_data[head : head + bytes_no] = r_buff.read(bytes_no)
+        head += bytes_no
         b_cnt += bytes_no        
 
-    return enc_data, g_cnt
+    return enc_data[:head], g_cnt
