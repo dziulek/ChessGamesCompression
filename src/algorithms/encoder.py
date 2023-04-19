@@ -33,6 +33,7 @@ class Encoder:
         self.def_out_format = TransformOut() # default output format transform
 
         self.__bytes_read_tot = Value(ctypes.c_int32, 0)
+        self.__bytes_read_tot.value = 0
         self.__games_cnt = Value(ctypes.c_int32, 0)
 
         self.dest_lock = multiprocessing.Lock()
@@ -47,28 +48,26 @@ class Encoder:
         self.open_mode = False
         self.ptr_pos = 0
 
-    def __del__(self,) -> None:
-
-        if self.curr_descriptor is not None:
-
-            if not self.curr_descriptor.closed:
-                self.curr_descriptor.close()
-
     def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
         _m = 'r'
         if binary: _m = 'rb'
 
         file_size = os.path.getsize(path)
 
-        if verbose:
+        if verbose :
             # print progress bar
-            logger.printProgressBar(0, file_size, prefix='Progress', suffix='Complete')
-
+            if self.open_mode:
+                logger.printProgressBar(0, max_games, prefix='Progress', suffix='Complete')
+            else:
+                logger.printProgressBar(0, file_size, prefix='Progress', suffix='Complete')
+        
         games_left = max_games
+        self.__games_cnt.value = 0
 
         with open(path, _m) as in_stream:
 
-            if self.open_mode and binary: in_stream.seek(self.ptr_pos)
+            if self.open_mode and binary: 
+                in_stream.seek(self.__bytes_read_tot.value)
 
             while 1:
 
@@ -79,6 +78,8 @@ class Encoder:
                     read_games = getattr(self.module_alg, 'read_games_' + self.alg)
                     enc_data, g_no = read_games(in_stream, self.batch_size, games_left)
                     games_left -= g_no
+                    with self.__games_cnt.get_lock():
+                        self.__games_cnt.value += g_no
                     
                     if not enc_data:
                         break
@@ -86,10 +87,6 @@ class Encoder:
                     Q.put(tuple([enc_data, g_no]))
                     with self.__bytes_read_tot.get_lock():
                         self.__bytes_read_tot.value += len(enc_data)
-                        if self.open_mode: self.ptr_pos += len(enc_data)
-
-                    if games_left == 0:
-                        break
 
                 else: 
                     d = ''.join(in_stream.readlines(self.batch_size))
@@ -100,11 +97,19 @@ class Encoder:
                         self.__bytes_read_tot.value += len(d)
 
                 if verbose:
-                    with self.__bytes_read_tot.get_lock():
-                        logger.printProgressBar(
-                            self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
-                        )
+                    if not self.open_mode:
+                        with self.__bytes_read_tot.get_lock():
+                            logger.printProgressBar(
+                                self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
+                            )
+                    else:
+                        with self.__games_cnt.get_lock():
+                            logger.printProgressBar(
+                                self.__games_cnt.value, max_games, prefix='Progress', suffix='Complete'
+                            )
                 
+                if self.__games_cnt.value == max_games:
+                    break
 
         for _ in range(self.par_workers): Q.put('kill')
 
@@ -165,7 +170,6 @@ class Encoder:
                 out_stream: str, in_tran: TransformIn=None, 
                 max_games=None, verbose=False):
 
-        self.open_mode = False
         self.current_file = in_stream
 
         self.__bytes_read_tot.value = 0
@@ -203,10 +207,10 @@ class Encoder:
                 out_stream: str, out_tran: TransformOut=None,
                 max_games=np.inf, verbose=False):
 
-        self.open_mode = False
         self.current_file = in_stream
 
-        self.__bytes_read_tot.value = 0
+        if not self.open_mode:
+            self.__bytes_read_tot.value = 0
         ub_games = max_games
         if ub_games is None: ub_games = np.inf
 
@@ -220,7 +224,10 @@ class Encoder:
         writer.start()
 
         if verbose:
-            print('Decompressing file', in_stream)
+            if self.open_mode:
+                print('Decoding', max_games, 'games from', in_stream)
+            else: print('Decompressing file', in_stream)
+
         workers: List[multiprocessing.Process] = []
         for _ in range(self.par_workers):
             workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
@@ -238,12 +245,13 @@ class Encoder:
 
     def decode_batch_of_games(self, path: str, output_path: str, N: int, out_tran: TransformOut=None, verbose: bool=False):
 
+        if not self.open_mode:
+            self.__bytes_read_tot.value = 0
+            self.__games_cnt.value = 0
         self.open_mode = True
         if self.curr_path_name is not None:
 
             if path != self.curr_path_name:
-
-                self.ptr_pos = 0
 
                 self.curr_path_name = path
 

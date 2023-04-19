@@ -50,11 +50,14 @@ class Test_encoder(unittest.TestCase):
         source_data = source_data.strip().split('\n') 
         TOTAL = len(source_data)
         current = 0
+
+        STEP = 100
+
         while current < TOTAL:
 
             alg_output_file = '__dec.txt'
             self.encoder_one_worker.decode_batch_of_games(
-                enc_file_name, alg_output_file, N=20, verbose=True
+                enc_file_name, alg_output_file, N=STEP, verbose=True
             )
 
             self.assertEqual(True, alg_output_file in set(os.listdir()))
@@ -63,13 +66,13 @@ class Test_encoder(unittest.TestCase):
                 dec_data = f.readlines()
                 dec_data = [g.strip() for g in dec_data]
 
-            self.assertEqual(20, len(dec_data))
+            self.assertEqual(min(TOTAL - current, STEP), len(dec_data))
 
-            for g_dec, g_src in zip(dec_data, source_data[current : min(TOTAL, current + 20)]):
+            for g_dec, g_src in zip(dec_data, source_data[current : min(TOTAL, current + STEP)]):
                 self.assertEqual(g_dec, g_src,
                                 msg=repr(g_dec) + '\n' + repr(g_src))
 
-            current += 20
+            current += STEP
             os.remove(alg_output_file)
 
         os.remove(enc_file_name)        
