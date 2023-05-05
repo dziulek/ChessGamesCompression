@@ -4,8 +4,8 @@ import src
 import multiprocessing
 import copy
 
-from src.algorithms.utils import get_script_path
-from src.algorithms.encoder import Encoder
+from chesskurcz.algorithms.utils import get_script_path
+from chesskurcz.algorithms.encoder import Encoder
 import io, os, sys
 
 class Test_compression_apm(unittest.TestCase): 

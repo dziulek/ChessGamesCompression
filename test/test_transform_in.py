@@ -1,7 +1,7 @@
 import unittest
 
-from src.algorithms.utils import get_script_path, standard_png_move_extractor, POSSIBLE_SCORES
-from src.algorithms.transform import TransformIn
+from chesskurcz.algorithms.utils import get_script_path, standard_png_move_extractor, POSSIBLE_SCORES
+from chesskurcz.algorithms.transform import TransformIn
 
 import re, io
 import chess.pgn

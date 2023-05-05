@@ -1,7 +1,7 @@
 import unittest
 
-from src.algorithms.utils import get_script_path
-from src.algorithms.encoder import Encoder
+from chesskurcz.algorithms.utils import get_script_path
+from chesskurcz.algorithms.encoder import Encoder
 import io, os, sys, multiprocessing
 
 class Test_compression_naive(unittest.TestCase): 

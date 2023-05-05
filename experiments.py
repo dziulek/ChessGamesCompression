@@ -9,9 +9,9 @@ import chess
 import chess.pgn
 import datetime
 
-from src.algorithms.utils import get_script_path
-from src.stats import Stats
-from src.algorithms.encoder import Encoder
+from chesskurcz.algorithms.utils import get_script_path
+from chesskurcz.stats import Stats
+from chesskurcz.algorithms.encoder import Encoder
 
 
 NUMBER_OF_THREADS = 6

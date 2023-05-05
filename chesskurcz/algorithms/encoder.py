@@ -1,16 +1,16 @@
 import io, os, sys
 
-from src.algorithms.transform import TransformIn, TransformOut
-from src.algorithms.utils import standard_png_move_extractor
-from src.stats import Stats
+from chesskurcz.algorithms.transform import TransformIn, TransformOut
+from chesskurcz.algorithms.utils import standard_png_move_extractor
+from chesskurcz.stats import Stats
 
-import src.algorithms.rank, src.algorithms.naive
-from src.algorithms import apm
+import chesskurcz.algorithms.rank, chesskurcz.algorithms.naive
+from chesskurcz.algorithms import apm
 import multiprocessing
 from multiprocessing import Value, Array
 from typing import Callable, List, Dict
 
-from src import logger
+from chesskurcz import logger
 
 import importlib
 import numpy as np

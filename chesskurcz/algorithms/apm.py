@@ -6,7 +6,7 @@ import numpy as np
 import io
 
 from typing import List, Dict, Tuple
-from src.algorithms.utils import get_all_possible_moves
+from chesskurcz.algorithms.utils import get_all_possible_moves
 
 import os
 import copy

@@ -1,12 +1,12 @@
 import unittest
 
 
-from src.algorithms.utils import get_script_path, compare_games
+from chesskurcz.algorithms.utils import get_script_path, compare_games
 import io, os, sys, multiprocessing
 
-from src.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
+from chesskurcz.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
 
-from src.algorithms.encoder import Encoder
+from chesskurcz.algorithms.encoder import Encoder
 
 class Test_compression_rank(unittest.TestCase): 
 
