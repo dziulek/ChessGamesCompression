@@ -39,7 +39,7 @@ class Encoder:
         self.dest_lock = multiprocessing.Lock()
         self.source_lock = multiprocessing.Lock()
 
-        self.module_alg = importlib.import_module('src.algorithms.' + alg)
+        self.module_alg = importlib.import_module('chesskurcz.algorithms.' + alg)
 
         self.current_file = None
 
