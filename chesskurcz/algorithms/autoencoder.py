@@ -29,7 +29,7 @@ class Decoder(nn.Module):
         self.dict_dim = dict_dim
         self.batch_size = batch_size
 
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=2)
 
         self.model = nn.Sequential(
             nn.Linear(in_features=latent_size, out_features=max_game_len//8),
@@ -48,7 +48,7 @@ class Decoder(nn.Module):
         x = self.model(x)
         x = torch.reshape(x, (self.batch_size, self.max_game_len, self.dict_dim))
 
-        return self.softmax(x)
+        return x
 
 class Encoder(nn.Module):
 
@@ -94,14 +94,17 @@ def main():
 
     # generate random set
     seq_len = 200
-    dict_dim = 1000
+    dict_dim = 100
 
-    BATCH_SIZE = 32
+    BATCH_SIZE = 16
 
-    N = BATCH_SIZE * 10
+    N = BATCH_SIZE * 40
     
     seq_origin = torch.randint(0, dict_dim, (N, seq_len))
     data = torch.reshape(nn.functional.one_hot(torch.flatten(seq_origin), dict_dim), (N, seq_len, -1))
+
+    # print(seq_origin)
+    # print(data)
 
     dataset = CustomDataset(data, seq_origin)
 
@@ -113,7 +116,7 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)    
 
-    num_epochs = 200
+    num_epochs = 1000
 
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -121,16 +124,19 @@ def main():
         total_predictions = 0
         
         for images, labels in train_loader:
-            # Forward pass
+
             outputs = model(images)
-            loss = criterion(outputs, nn.functional.one_hot(labels, dict_dim).type(torch.float32))
+            outputs = torch.reshape(outputs, (-1, dict_dim))
+            one_hot_labels = nn.functional.one_hot(labels, dict_dim).type(torch.float32)
+            loss = criterion(outputs, torch.reshape(one_hot_labels, (-1, dict_dim)))
             
-            # Backward and optimize
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            output_labels = torch.argmax(outputs.data, dim=1)
             
-            correct_predictions += (torch.argmax(outputs.data, dim=2) == labels).sum().item()
+            correct_predictions += (output_labels == labels.flatten()).sum().item()
             total_predictions += torch.flatten(labels).shape[0]
             running_loss += loss.item()
         
@@ -139,6 +145,22 @@ def main():
         accuracy = correct_predictions / total_predictions
         print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')
 
+    model.eval()
+    test_loss = 0.0
+    correct = 0
+    total = 0
+
+    # with torch.no_grad():
+    #     for images, labels in train_loader:
+    #         outputs = model(images)
+    #         test_loss += criterion(outputs, nn.functional.one_hot(labels, dict_dim).type(torch.float32)).item()
+    #         predicted = torch.argmax(outputs.data, dim=1)
+    #         total += labels.size(0)
+    #         correct += (predicted == labels.flatten).sum().item()
+
+    # test_loss /= len(train_loader)
+    # test_accuracy = correct / total
+    # print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')            
 
 if __name__ == "__main__":
 
