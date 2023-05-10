@@ -18,10 +18,278 @@ FOUR_1 = 0xffffffff
 BIT_S = 32
 
 MOVE_REGEX = r'(O-O-O|O-O|[QKRBN]?([a-h]|[1-8])?x?[a-h][1-8]([#+]|=[QRBN][+#]?)?|1/2-1/2|1-0|0-1)'
-# move_token_reg = re.compile(MOVE_REGEX)
+
+PGN_MOVE_REGEX = (
+    r'(?P<CASTLE_LONG>O-O-O)|(?P<CASTLE_SHORT>O-O)|(?P<PIECE_TYPE>[QKRBN]?)'
+    r'(?P<START_ROW>[1-8]?)(?P<START_COLUMN>[a-h]?)x?(?P<DEST_FIELD>[a-h][1-8])([#+]|'
+    r'(?P<PROMOTION>=[QRBN])[+#]?)?'
+)
+
+pgn_re = re.compile(PGN_MOVE_REGEX)
+
 
 THRASH_REGEX = r'(\?|\!|\{[^{}]*\}|\n)'
-# thrash_token_reg = re.compile(THRASH_REGEX)
+
+EMPTY_FIELD = -1
+
+CHESS_BOARD = np.zeros((8, 8), dtype=np.int8) - EMPTY_FIELD
+
+WHITE_KING = 0
+WHITE_QUEEN = 1
+WHITE_ROOK = 2
+WHITE_BISHOP = 3
+WHITE_KNIGHT = 4
+WHITE_PAWN = 5
+
+BLACK_KING = 6
+BLACK_QUEEN = 7
+BLACK_ROOK = 8
+BLACK_BISHOP = 9
+BLACK_KNIGHT = 10
+BLACK_PAWN = 11
+
+PIECE_TO_INT = {
+    'K': WHITE_KING,
+    'Q': WHITE_QUEEN,
+    'R': WHITE_ROOK,
+    'B': WHITE_BISHOP,
+    'N': WHITE_KNIGHT
+}
+
+BLACK_OFF = 6
+
+def set_starting_board(board: np.ndarray):
+
+    piece_pos_table: Dict[int, List[np.ndarray]] = {}
+    # KINGS 
+    board[7][4] = WHITE_KING
+    board[0][4] = BLACK_KING
+    piece_pos_table[WHITE_KING].append(np.array([7, 4], np.int32))
+    piece_pos_table[BLACK_KING].append(np.array([0, 4], np.int32))
+
+    board[7][3] = WHITE_QUEEN
+    board[0][3] = BLACK_QUEEN
+    piece_pos_table[WHITE_QUEEN].append(np.array([7, 3], np.int32))
+    piece_pos_table[BLACK_QUEEN].append(np.array([0, 3], np.int32))
+
+    board[7][0] = WHITE_ROOK
+    board[7][7] = WHITE_ROOK
+    board[0][0] = BLACK_ROOK
+    board[0][7] = BLACK_ROOK
+    piece_pos_table[WHITE_ROOK].append(np.array([7, 0], np.int32))
+    piece_pos_table[WHITE_ROOK].append(np.array([7, 7], np.int32))
+    piece_pos_table[BLACK_ROOK].append(np.array([0, 0], np.int32))
+    piece_pos_table[BLACK_ROOK].append(np.array([0, 7], np.int32))
+
+    board[7][2] = WHITE_BISHOP
+    board[7][5] = WHITE_BISHOP
+    board[0][2] = BLACK_BISHOP
+    board[0][5] = BLACK_BISHOP
+    piece_pos_table[WHITE_BISHOP].append(np.array([7, 2], np.int32))
+    piece_pos_table[WHITE_BISHOP].append(np.array([7, 5], np.int32))
+    piece_pos_table[BLACK_BISHOP].append(np.array([0, 2], np.int32))
+    piece_pos_table[BLACK_BISHOP].append(np.array([0, 5], np.int32))
+
+
+    board[7][1] = WHITE_KNIGHT
+    board[7][6] = WHITE_KNIGHT
+    board[0][1] = BLACK_KNIGHT
+    board[0][6] = BLACK_KNIGHT
+    piece_pos_table[WHITE_KNIGHT].append(np.array([7, 1], np.int32))
+    piece_pos_table[WHITE_KNIGHT].append(np.array([7, 6], np.int32))
+    piece_pos_table[BLACK_KNIGHT].append(np.array([0, 1], np.int32))
+    piece_pos_table[BLACK_KNIGHT].append(np.array([0, 6], np.int32))
+
+    for i in range(8):
+        board[6][i] = WHITE_PAWN
+        board[1][i] = BLACK_PAWN
+        piece_pos_table[WHITE_PAWN].append(np.array([6, i], np.int32))
+        piece_pos_table[BLACK_PAWN].append(np.array([1, i], np.int32))
+
+    return piece_pos_table
+
+def control_square(piece_type: str, piece_pos: Tuple[int, int], piece_control: Tuple[int, int]) -> bool:
+
+    piece_pos_y, piece_pos_x = piece_pos
+    piece_control_y, piece_control_x = piece_control
+
+    if piece_type == 'K':
+        
+        return max(abs(piece_control_x - piece_pos_x), 
+                   abs(piece_control_y - piece_pos_y)) == 1
+    
+    elif piece_type == 'Q':
+
+        # row and columns
+        if piece_control_x == piece_pos_x or \
+            piece_control_y == piece_pos_y: return True
+        
+        # diagonals
+        if piece_control_y + piece_control_x == piece_pos_x + piece_pos_y: return True
+
+        if 8 - piece_control_y + piece_control_x == piece_pos_x + piece_pos_x: return True
+
+        return False
+    
+    elif piece_type == 'R':
+
+        if piece_control_x == piece_pos_x or \
+            piece_control_y == piece_pos_y: return True
+        
+        return False
+    
+    elif piece_type == 'B':
+
+        if piece_control_y + piece_control_x == piece_pos_x + piece_pos_y: return True
+
+        if 8 - piece_control_y + piece_control_x == piece_pos_x + piece_pos_x: return True
+
+        return False
+    
+    elif piece_type == 'N':
+        diff_x = piece_control_x - piece_pos_x
+        diff_y = piece_control_y - piece_pos_y
+        return abs(diff_x) + \
+            abs(diff_y) == 3 and min(diff_y, diff_x) == 1
+    
+    else: # pawn
+
+        pass
+
+def field_to_string(coords: np.ndarray) -> str:
+
+    return chr(ord('a') + coords[1]) + str(8 - coords[0])
+
+def uci_to_coords(uci: str) -> np.ndarray:
+
+    return np.array([ord(uci[0]) - ord('a'), 8 - int(uci[1])], dtype=np.int32)
+
+def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int, List[np.ndarray]], turn: bool) -> str:
+
+    _match = pgn_re.match(pgn_move)
+
+    # STANDARD PIECE MOVE - given piece and destination
+    if _match.group('CASTLE_LONG') is not None:
+        if turn: 
+            board[0][4] = EMPTY_FIELD
+            board[0][0] = EMPTY_FIELD
+            board[0][2] = BLACK_KING
+            board[0][3] = BLACK_ROOK
+
+            for p in piece_pos_table[WHITE_ROOK + turn * BLACK_OFF]:
+                
+                if np.sum(p) == 0: p = np.array([0, 3], np.int32)
+            
+            piece_pos_table[WHITE_KING + turn * BLACK_OFF][0] = np.array([0, 2], np.int32)
+            return 'e8c8'
+        
+        board[7][4] = EMPTY_FIELD
+        board[7][0] = EMPTY_FIELD
+        board[7][2] = WHITE_KING
+        board[7][3] = WHITE_ROOK 
+
+        for p in piece_pos_table[WHITE_ROOK + turn * BLACK_OFF]:
+            
+            if np.sum(p) == 0: p = np.array([7, 3], np.int32)
+        
+        piece_pos_table[WHITE_KING + turn * BLACK_OFF][0] = np.array([7, 2], np.int32)
+
+        return 'e1c1'
+
+    if _match.group('CASTLE_SHORT') is not None:
+
+        if turn:
+            board[0][4] = EMPTY_FIELD
+            board[0][7] = EMPTY_FIELD
+            board[0][6] = BLACK_KING
+            board[0][5] = BLACK_ROOK
+
+            for p in piece_pos_table[WHITE_ROOK + turn * BLACK_OFF]:
+                
+                if np.sum(p) == 0: p = np.array([0, 5], np.int32)
+            
+            piece_pos_table[WHITE_KING + turn * BLACK_OFF][0] = np.array([0, 6], np.int32)
+
+            return 'e8g8'
+        
+        board[7][4] = EMPTY_FIELD
+        board[7][7] = EMPTY_FIELD
+        board[7][6] = WHITE_KING
+        board[7][5] = WHITE_ROOK
+
+        for p in piece_pos_table[WHITE_ROOK + turn * BLACK_OFF]:
+            
+            if np.sum(p) == 0: p = np.array([7, 5], np.int32)
+        
+        piece_pos_table[WHITE_KING + turn * BLACK_OFF][0] = np.array([7, 6], np.int32)
+
+        return 'e1g1'
+
+    dest_field = uci_to_coords(_match.group('DEST_FIELD'))
+
+    if _match('PIECE_TYPE') is not None:
+        
+        piece_type = _match('PIECE_TYPE')
+        start_pos = np.array([-1, -1], dtype=np.int32)
+        if _match('START_COLUMN') != '':
+            start_pos[1] = int(_match('START_COLUMN')) - 1
+        if _match('START_ROW') != '':
+            start_pos[0] = 8 - int(_match('START_ROW'))
+
+        for p in piece_pos_table[PIECE_TO_INT[piece_type] + turn * BLACK_OFF]:
+            
+            eq = p == start_pos
+            if start_pos[eq == False].all() == -1 and control_square(piece_type, p, dest_field):
+
+                board[p] = EMPTY_FIELD
+                board[dest_field] = PIECE_TO_INT[piece_type] + turn * BLACK_OFF
+
+                p = dest_field
+    
+                return field_to_string(p) + field_to_string(dest_field)
+    
+    # pawn move
+    start_pos = np.ndarray([-1, -1], dtype=np.int32)
+    
+    if _match('START_COLUMN') != '':
+        start_pos[1] = int(_match('START_COLUMN')) - 1
+    
+    for p in piece_pos_table[WHITE_PAWN + turn * BLACK_OFF]:
+
+        eq  = p == start_pos
+        if start_pos[eq == False].all() == -1 and control_square('P', p, dest_field):
+
+            board[p] = EMPTY_FIELD
+            board[dest_field] = PIECE_TO_INT[piece_type] + turn * BLACK_OFF
+
+            if _match('PROMOTION') is not None:
+
+                board[dest_field] = PIECE_TO_INT[_match('PROMOTION')] + turn * BLACK_OFF
+
+                return field_to_string(p) + field_to_string(dest_field)
+            
+            return field_to_string(p) + field_to_string(dest_field)
+
+
+def pgn_to_uci_game(moves: List[str]) -> List[str]:
+
+    board = CHESS_BOARD.copy()
+
+    uci_moves = []
+    piece_pos_table = set_starting_board(board=board)
+    turn = 0
+
+    for move in moves:
+
+        if move in POSSIBLE_SCORES:
+
+            uci_moves.append(move)
+            return uci_moves
+
+        uci = pgn_to_uci_move(board, move, piece_pos_table, turn)
+        uci_moves.append(uci)
+
+        turn = 1 - turn
 
 def standard_png_move_extractor(_in: str) -> List[List[str]]:
 
