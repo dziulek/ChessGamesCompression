@@ -72,11 +72,11 @@ CASTLES_MOVES = {
     'CASTLE_LONG': {
         WHITE: {
             KING: [(7, 4), (7, 2), 'e1c1'],
-            ROOK: [(7, 7), (7, 3)],            
+            ROOK: [(7, 0), (7, 3)],            
         },
         BLACK: {
             KING: [(0, 4), (0, 2), 'e8c8'],
-            ROOK: [(0, 7), (0, 3)]          
+            ROOK: [(0, 0), (0, 3)]          
         }
           
     }
@@ -251,12 +251,33 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
 
         return type_castle[turn][KING][2]
 
+    if pgn_move == 'exf6':
+        a = 3
+
     DEST_FIELD = uci_to_coords(DEST_FIELD)
 
     if CAPTURE:
-        # find captured piece and remove
-        for i, p in enumerate(piece_pos_table[board[DEST_FIELD[0], DEST_FIELD[1]]]):
-            if (p == DEST_FIELD).all(): piece_pos_table[board[DEST_FIELD[0], DEST_FIELD[1]]].pop(i)
+
+        found = False        
+        # en passau
+        if board[tuple(DEST_FIELD)] == EMPTY_FIELD:
+            taken_pos = DEST_FIELD + np.array([(-1) ** turn, 0], dtype=np.int8)
+            for i, p in enumerate(piece_pos_table[PAWN + (1 - turn) * BLACK_OFF]):
+                if (p == taken_pos).all():
+                    piece_pos_table[PAWN + (1 - turn) * BLACK_OFF].pop(i)
+                    found = True
+                    break
+
+        else:
+            # find captured piece and remove
+            for i, p in enumerate(piece_pos_table[board[DEST_FIELD[0], DEST_FIELD[1]]]):
+                if (p == DEST_FIELD).all(): 
+                    found = True
+                    piece_pos_table[board[DEST_FIELD[0], DEST_FIELD[1]]].pop(i)
+                    break
+        if not found:
+            a = 3
+        assert found == True, "NOT FOUND CAPTURED PIECE"
 
     if PIECE_TYPE != '':
 
