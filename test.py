@@ -4,12 +4,13 @@ from test.test_transform_in import Test_transform_in
 from test.test_compression_rank import Test_compression_rank
 from test.test_compression_naive import Test_compression_naive
 from test.test_encoder import Test_encoder
+from test.test_pgn_to_uci_game import Test_pgn_to_uci_game
 
 def main():
 
     suite = unittest.TestSuite()
     # suite.addTest(Test_transform_in("test_transform"))
-    suite.addTest(Test_encoder("test_read_batch_games_one_thread"))
+    suite.addTest(Test_pgn_to_uci_game("test_pgn_to_uci_game"))
     runner = unittest.TextTestRunner()
     runner.run(suite)
 

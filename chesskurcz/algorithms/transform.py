@@ -64,6 +64,7 @@ class TransformIn:
 
     def transform(self, _in: str) -> List[List[str]]:
 
+        out = _in
         if self.drop_patterns is not None:
             out = re.sub(self.drop_patterns, '', _in)
         
