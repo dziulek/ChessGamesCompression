@@ -168,6 +168,7 @@ def control_square(board: np.ndarray, piece_type: str, piece_pos: Tuple[int, int
     ppos = np.array(piece_pos, dtype=np.int8)
     pcontrol = np.array(piece_control, dtype=np.int8)
 
+    # check if move is possible
     if not free_path_board(board, ppos, pcontrol, piece_type): return False
 
     if piece_type == 'K':
@@ -220,9 +221,58 @@ def uci_to_coords(uci: str) -> np.ndarray:
 
     return np.array([8 - int(uci[1]), ord(uci[0]) - ord('a')], dtype=np.int32)
 
-def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int, List[np.ndarray]], turn: bool) -> str:
+def pinned_piece_move(board: np.ndarray, piece_pos: np.ndarray, king_pos: np.ndarray, dest_pos: np.ndarray, turn: int):
 
-    print(pgn_move)
+    v = piece_pos - king_pos
+
+    if v[0] == 0 and v[1] == 0: return False
+
+    DIAGONAL = False
+    ROW_COLUMN = False
+    if np.min(v) == 0:
+        ROW_COLUMN = True
+    if abs(v[0]) == abs(v[1]):
+        DIAGONAL = True
+    if not DIAGONAL and not ROW_COLUMN:
+        return False
+
+    __dir = np.sign(v)
+    u = dest_pos - piece_pos
+
+    # move which does not uncover the king
+    if (np.abs(__dir) == np.abs(np.sign(u))).all() and board[tuple(piece_pos)] != KNIGHT + turn * BLACK_OFF:
+        return False
+
+    # path from king to piece
+    cur_pos = king_pos.copy() + __dir
+    while np.max(cur_pos) < 8 and np.min(cur_pos) > -1 and board[tuple(cur_pos)] == EMPTY_FIELD:
+        cur_pos += __dir
+
+    if np.max(cur_pos) < 8 and np.min(cur_pos) > -1 and (cur_pos == piece_pos).all():
+        
+        cur_pos = piece_pos.copy() + __dir
+        if np.max(cur_pos) > 7 or np.min(cur_pos) < 0: return False
+        # find first piece that is on the same diagonal or row/column
+        while board[cur_pos[0], cur_pos[1]] == EMPTY_FIELD:
+
+            cur_pos += __dir
+            if np.max(cur_pos) > 7 or np.min(cur_pos) < 0: return False
+
+        if board[cur_pos[0], cur_pos[1]] == QUEEN + (1 - turn) * BLACK_OFF:
+            return True
+
+        if ROW_COLUMN:
+            if board[cur_pos[0], cur_pos[1]] == ROOK + (1 - turn) * BLACK_OFF:
+                return True
+
+        else: # DIAGONAL
+            
+            if board[cur_pos[0], cur_pos[1]] == BISHOP + (1 - turn) * BLACK_OFF:
+                return True
+    
+    return False
+
+def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int, List[np.ndarray]], turn: bool) -> str:
 
     _match = pgn_re.match(pgn_move)
     CASTLE = 'CASTLE_SHORT' if _match.group('CASTLE_SHORT') is not None else None
@@ -251,20 +301,19 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
 
         return type_castle[turn][KING][2]
 
-    if pgn_move == 'exf6':
-        a = 3
 
     DEST_FIELD = uci_to_coords(DEST_FIELD)
 
     if CAPTURE:
 
         found = False        
-        # en passau
+        # en passant
         if board[tuple(DEST_FIELD)] == EMPTY_FIELD:
             taken_pos = DEST_FIELD + np.array([(-1) ** turn, 0], dtype=np.int8)
             for i, p in enumerate(piece_pos_table[PAWN + (1 - turn) * BLACK_OFF]):
                 if (p == taken_pos).all():
                     piece_pos_table[PAWN + (1 - turn) * BLACK_OFF].pop(i)
+                    board[taken_pos[0], taken_pos[1]] = EMPTY_FIELD
                     found = True
                     break
 
@@ -275,8 +324,7 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
                     found = True
                     piece_pos_table[board[DEST_FIELD[0], DEST_FIELD[1]]].pop(i)
                     break
-        if not found:
-            a = 3
+
         assert found == True, "NOT FOUND CAPTURED PIECE"
 
     if PIECE_TYPE != '':
@@ -290,7 +338,8 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
         for i, p in enumerate(piece_pos_table[PIECE_TO_INT[PIECE_TYPE] + PIECE_OFF]):
             
             eq = p == start_pos
-            if (start_pos[eq == False] == -1).all() and control_square(board, PIECE_TYPE, p, DEST_FIELD):
+            if (start_pos[eq == False] == -1).all() and control_square(board, PIECE_TYPE, p, DEST_FIELD) and \
+                not pinned_piece_move(board, p, piece_pos_table[KING + PIECE_OFF][0], DEST_FIELD, turn):
 
                 board[p[0], p[1]] = EMPTY_FIELD
                 board[DEST_FIELD[0], DEST_FIELD[1]] = PIECE_TO_INT[PIECE_TYPE] + PIECE_OFF
@@ -298,7 +347,7 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
                 piece_pos_table[PIECE_TO_INT[PIECE_TYPE] + turn * BLACK_OFF][i] = DEST_FIELD
     
                 return field_to_string(p) + field_to_string(DEST_FIELD)
-    
+
     # pawn move
     start_pos = np.array([-1, -1], dtype=np.int32)
     
@@ -308,7 +357,8 @@ def pgn_to_uci_move(board: np.ndarray, pgn_move: str, piece_pos_table: Dict[int,
     for i, p in enumerate(piece_pos_table[WHITE_PAWN + PIECE_OFF]):
 
         eq  = p == start_pos
-        if (start_pos[eq == False] == -1).all() and control_square(board, 'P', p, DEST_FIELD, turn, CAPTURE):
+        if (start_pos[eq == False] == -1).all() and control_square(board, 'P', p, DEST_FIELD, turn, CAPTURE) and \
+            not pinned_piece_move(board, p, piece_pos_table[KING + PIECE_OFF][0], DEST_FIELD, turn):
 
             board[p[0], p[1]] = EMPTY_FIELD
             board[DEST_FIELD[0], DEST_FIELD[1]] = PAWN + PIECE_OFF
@@ -537,6 +587,77 @@ def get_script_path() -> str:
 
     path = os.path.realpath(__file__)
     return path[: path.rfind('chesskurcz')]
+
+def get_all_possible_uci_moves() -> Dict[str, int]:
+
+    cnt = 0
+    dictionary = {}
+    for sy in range(8):
+        for sx in range(8):
+            for dy in range(8):
+                for dx in range(8):
+                    if sy == dy and sx == dx: continue
+
+                    x_abs_diff = abs(sx - dx)
+                    y_abs_diff = abs(dy - sy)                    
+                    add = False
+                    # columns
+                    if sy == dy or sx == dx:
+                        add = True
+                    
+                    # diagonals
+                    elif sx + sy == dx + dy or -sx + sy == -dx + dy:
+                        add = True
+                    # knight moves
+                    elif x_abs_diff + y_abs_diff == 3 and min(x_abs_diff, y_abs_diff) == 1:
+                        add = True
+
+                    if add:
+                        dictionary[field_to_string(np.array([sy, sx])) + field_to_string(np.array([dy, dx]))] = cnt
+                        cnt += 1
+    
+    # add promotions
+    for i in range(8):
+        for p in ['q', 'r', 'b', 'n']:
+            uci_black = field_to_string(np.array([6, i])) + \
+                    field_to_string(np.array([7, i])) + p
+            uci_white = field_to_string(np.array([1, i])) + \
+                    field_to_string(np.array([0, i])) + p
+
+            dictionary[uci_black] = cnt
+            cnt += 1
+            dictionary[uci_white] = cnt
+            cnt += 1 
+
+            # right takes and promotes
+            if i < 7:
+                uci_black = field_to_string(np.array([6, i])) + \
+                    field_to_string(np.array([7, i + 1])) + p
+                uci_white = field_to_string(np.array([1, i])) + \
+                    field_to_string(np.array([0, i + 1])) + p 
+
+                dictionary[uci_black] = cnt
+                cnt += 1
+                dictionary[uci_white] = cnt 
+                cnt += 1
+
+            # left takes and promotes
+            if i > 0:
+                uci_black = field_to_string(np.array([6, i])) + \
+                    field_to_string(np.array([7, i - 1])) + p
+                uci_white = field_to_string(np.array([1, i])) + \
+                    field_to_string(np.array([0, i - 1])) + p 
+
+                dictionary[uci_black] = cnt
+                cnt += 1
+                dictionary[uci_white] = cnt 
+                cnt += 1            
+
+    for s in POSSIBLE_SCORES:
+        dictionary[s] = cnt
+        cnt += 1        
+
+    return dictionary
 
 def get_all_possible_moves(bits_per_move: int) -> List[str]:
     '''

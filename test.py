@@ -10,7 +10,7 @@ def main():
 
     suite = unittest.TestSuite()
     # suite.addTest(Test_transform_in("test_transform"))
-    suite.addTest(Test_pgn_to_uci_game("test_pgn_to_uci_game"))
+    suite.addTest(Test_pgn_to_uci_game("test_conversion_time"))
     runner = unittest.TextTestRunner()
     runner.run(suite)
 

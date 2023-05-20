@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import numpy as np
 
+from chesskurcz.algorithms.autoencoder_utils import default_uci_move_repr
+
 class CustomDataset(torch.utils.data.Dataset):
     def __init__(self, data, targets, transform=None):
         self.data = data
@@ -22,51 +24,58 @@ class CustomDataset(torch.utils.data.Dataset):
 
 class Decoder(nn.Module):
 
-    def __init__(self, max_game_len=200, batch_size=1024, dict_dim=1000, emb_dim=10, channels=4, latent_size=6) -> None:
+    def __init__(self, output_size=(100, 6), batch_size=1024, channels=10, latent_size=6) -> None:
         super().__init__()
 
-        self.max_game_len = max_game_len
-        self.dict_dim = dict_dim
+        self.max_game_len = output_size[0]
+        self.emb_dim = output_size[1]
         self.batch_size = batch_size
 
-        self.softmax = nn.Softmax(dim=2)
+        self.fully_layers = nn.Sequential(
+            nn.Linear(in_features=latent_size, out_features=25),
+            nn.ReLU(),
+            nn.Linear(in_features=25, out_features=50),
+            nn.ReLU(),
+            nn.Linear(in_features=50, out_features=96),
+            nn.ReLU()
+        )
 
-        self.model = nn.Sequential(
-            nn.Linear(in_features=latent_size, out_features=max_game_len//8),
+        self.conv_layers = nn.Sequential(
+            nn.ConvTranspose2d(1, channels, (3, 1)),
             nn.ReLU(),
-            nn.Linear(in_features=max_game_len//8, out_features=max_game_len//4),
+            nn.ConvTranspose2d(channels, channels, (2, 3)),
             nn.ReLU(),
-            nn.Linear(in_features=max_game_len//4, out_features=max_game_len//2),
-            nn.ReLU(),
-            nn.Linear(in_features=max_game_len//2, out_features=max_game_len), 
-            nn.ReLU(),   
-            nn.Linear(in_features=max_game_len, out_features=dict_dim * max_game_len)
+            nn.ConvTranspose2d(channels, 1, (2,2), (1, 2))
         )
 
     def forward(self, x):
 
-        x = self.model(x)
-        x = torch.reshape(x, (self.batch_size, self.max_game_len, self.dict_dim))
+        x = self.fully_layers(x)
+        x = torch.reshape(x, (self.batch_size, 1, 96, 1))
+        x = self.conv_layers(x)
+        x = torch.reshape(x, (self.batch_size, 1, self.max_game_len, self.emb_dim))
 
         return x
 
 class Encoder(nn.Module):
 
-    def __init__(self, max_game_len=200, batch_size=1024, dict_dim=64 * 63, emb_dim=10, channels=4, latent_size=6) -> None:
+    def __init__(self, input_size=(100, 6), kernel_channels=16, latent_size=6) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
+            nn.Conv2d(in_channels=1, out_channels=kernel_channels, kernel_size=(2,2), stride=(1,2)),
+            nn.ReLU(),
+            nn.Conv2d(kernel_channels, kernel_channels, (2, 3)),
+            nn.ReLU(),
+            nn.Conv2d(kernel_channels, 1, (3, 1)),
+            nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(in_features=max_game_len * dict_dim, out_features=max_game_len),
+            nn.Linear(in_features=input_size[0] - 4, out_features=50),
             nn.ReLU(),
-            nn.Linear(in_features=max_game_len, out_features=max_game_len//2),
+            nn.Linear(in_features=50, out_features=25),
             nn.ReLU(),            
-            nn.Linear(in_features=max_game_len//2, out_features=max_game_len//4),
-            nn.ReLU(),
-            nn.Linear(in_features=max_game_len//4, out_features=max_game_len//8),
-            nn.ReLU(),
-            nn.Linear(in_features=max_game_len//8, out_features=latent_size), 
-            nn.ReLU()       
+            nn.Linear(in_features=25, out_features=latent_size),
+            nn.ReLU() 
         )
 
     def forward(self, x):
@@ -78,10 +87,10 @@ class AutoEncoder(nn.Module):
         super().__init__()
 
         self.encoder = Encoder(
-            max_game_len, batch_size, dict_dim, emb_dim, channels, latent_size
+            (100, 6), channels, latent_size
         )
         self.decoder = Decoder(
-            max_game_len, batch_size, dict_dim, emb_dim, channels, latent_size
+            (100, 6), batch_size, channels, latent_size
         )
 
     def forward(self, x):
@@ -143,24 +152,7 @@ def main():
         # Print epoch statistics
         epoch_loss = running_loss / len(train_loader)
         accuracy = correct_predictions / total_predictions
-        print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')
-
-    model.eval()
-    test_loss = 0.0
-    correct = 0
-    total = 0
-
-    # with torch.no_grad():
-    #     for images, labels in train_loader:
-    #         outputs = model(images)
-    #         test_loss += criterion(outputs, nn.functional.one_hot(labels, dict_dim).type(torch.float32)).item()
-    #         predicted = torch.argmax(outputs.data, dim=1)
-    #         total += labels.size(0)
-    #         correct += (predicted == labels.flatten).sum().item()
-
-    # test_loss /= len(train_loader)
-    # test_accuracy = correct / total
-    # print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}')            
+        print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {epoch_loss:.4f}, Accuracy: {accuracy:.4f}')           
 
 if __name__ == "__main__":
 

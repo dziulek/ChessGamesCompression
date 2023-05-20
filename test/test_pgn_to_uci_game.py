@@ -1,8 +1,8 @@
-import unittest
+import unittest, time
 
 
 from chesskurcz.algorithms.utils import pgn_to_uci_move, pgn_to_uci_game, control_square, get_script_path, standard_png_move_extractor
-from chesskurcz.algorithms.transform import TransformIn
+from chesskurcz.algorithms.transform import TransformIn, game_from_pgn_to_uci
 
 class Test_pgn_to_uci_game(unittest.TestCase): 
 
@@ -59,4 +59,29 @@ class Test_pgn_to_uci_game(unittest.TestCase):
 
                     self.assertEqual(True, True)
 
-                        
+    def test_conversion_time(self,):
+
+        transform = TransformIn(standard_png_move_extractor)
+        print('PROCESSING WITH CUSTOM FUNCTION')
+        for f in self.test_files:
+
+            with open(f, 'r') as buff:
+
+                games = transform.transform(buff.read())
+
+                start = time.time()
+                for game in games:
+                    
+                    uci_moves = pgn_to_uci_game(game)
+                duration_custom = time.time() - start
+                print('TIME:', duration_custom, 'sec.')
+                print('====================================')
+                start = time.time()
+                for game in games:
+
+                    uci_moves = game_from_pgn_to_uci(game)
+                duration_python_chess = time.time() - start
+                print('TIME:', duration_python_chess, 'sec.')
+
+        print('====================================')
+        print('OWN VERSION IS', duration_python_chess / duration_custom, 'FASTER')
