@@ -24,11 +24,11 @@ class CustomDataset(torch.utils.data.Dataset):
 
 class Decoder(nn.Module):
 
-    def __init__(self, output_size=(100, 6), batch_size=1024, channels=10, latent_size=6) -> None:
+    def __init__(self, output_size=(5, 100, 8), batch_size=1024, channels=10, latent_size=6) -> None:
         super().__init__()
 
-        self.max_game_len = output_size[0]
-        self.emb_dim = output_size[1]
+        self.max_game_len = output_size[1]
+        self.emb_dim = output_size[2]
         self.batch_size = batch_size
 
         self.fully_layers = nn.Sequential(
@@ -43,9 +43,9 @@ class Decoder(nn.Module):
         self.conv_layers = nn.Sequential(
             nn.ConvTranspose2d(1, channels, (3, 1)),
             nn.ReLU(),
-            nn.ConvTranspose2d(channels, channels, (2, 3)),
+            nn.ConvTranspose2d(channels, channels, (2, 1)),
             nn.ReLU(),
-            nn.ConvTranspose2d(channels, 1, (2,2), (1, 2))
+            nn.ConvTranspose2d(channels, 5, (2,8))
         )
 
     def forward(self, x):
@@ -59,18 +59,18 @@ class Decoder(nn.Module):
 
 class Encoder(nn.Module):
 
-    def __init__(self, input_size=(100, 6), kernel_channels=16, latent_size=6) -> None:
+    def __init__(self, input_size=(5, 100, 8), kernel_channels=16, latent_size=6) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=kernel_channels, kernel_size=(2,2), stride=(1,2)),
+            nn.Conv2d(in_channels=5, out_channels=kernel_channels, kernel_size=(2,8)),
             nn.ReLU(),
-            nn.Conv2d(kernel_channels, kernel_channels, (2, 3)),
+            nn.Conv2d(kernel_channels, kernel_channels, (2, 1)),
             nn.ReLU(),
             nn.Conv2d(kernel_channels, 1, (3, 1)),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(in_features=input_size[0] - 4, out_features=50),
+            nn.Linear(in_features=input_size[1] - 4, out_features=50),
             nn.ReLU(),
             nn.Linear(in_features=50, out_features=25),
             nn.ReLU(),            
@@ -87,10 +87,10 @@ class AutoEncoder(nn.Module):
         super().__init__()
 
         self.encoder = Encoder(
-            (100, 6), channels, latent_size
+            (5, 100, 8), channels, latent_size
         )
         self.decoder = Decoder(
-            (100, 6), batch_size, channels, latent_size
+            (5, 100, 8), batch_size, channels, latent_size
         )
 
     def forward(self, x):

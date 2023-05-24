@@ -38,11 +38,11 @@ def main():
         
         games_uci[i] = games_uci[i][:100]
 
-    games_mapped = np.zeros((len(games_uci), 100, 6))
+    games_mapped = np.zeros((len(games_uci), 5, 100, 8))
     # map uci to numbers
     for i in range(len(games_uci)):
         for j in range(100):
-            games_mapped[i][j] = np.concatenate((default_uci_move_repr(games_uci[i][j]), np.zeros((1,))))
+            games_mapped[i][:][j] = np.concatenate((default_uci_move_repr(games_uci[i][j])))
     
     games_tensor = torch.tensor(games_mapped)
     data = torch.reshape(games_tensor, (len(games_mapped),1,  100, -1))
