@@ -1,6 +1,6 @@
 import unittest
 
-from chesskurcz.algorithms.utils import get_script_path, standard_png_move_extractor, POSSIBLE_SCORES
+from chesskurcz.algorithms.utils import get_workspace_path, standard_png_move_extractor, POSSIBLE_SCORES
 from chesskurcz.algorithms.transform import TransformIn
 
 import re, io
@@ -11,8 +11,8 @@ class Test_transform_in(unittest.TestCase):
     def __init__(self, methodName: str = "runTest") -> None:
         super().__init__(methodName)
 
-        self.data_path = '/../test_data/test_file.pgn'
-        self.path = get_script_path()
+        self.data_path = 'test_data/test_file.pgn'
+        self.path = get_workspace_path()
 
         self.transform = TransformIn(
             standard_png_move_extractor, 

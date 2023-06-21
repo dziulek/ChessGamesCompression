@@ -583,7 +583,7 @@ def to_binary(_bin: int, BITS: int, bits: int, val: int, k: int) -> Tuple[int, i
 
     return _bin, _carry, bits
 
-def get_script_path() -> str:
+def get_workspace_path() -> str:
 
     path = os.path.realpath(__file__)
     return path[: path.rfind('chesskurcz')]

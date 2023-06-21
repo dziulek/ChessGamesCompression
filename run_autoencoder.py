@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 from chesskurcz.algorithms.autoencoder import CustomDataset, AutoEncoder
-from chesskurcz.algorithms.utils import get_all_possible_uci_moves, get_script_path
+from chesskurcz.algorithms.utils import get_all_possible_uci_moves, get_workspace_path
 from chesskurcz.algorithms.transform import game_from_pgn_to_uci
 from chesskurcz.algorithms.autoencoder_utils import default_uci_move_repr
 
@@ -22,7 +22,7 @@ def main():
     NUMBER_OF_TOKENS = len(uci_moves_dict)
     print('NUMBER OF TOKENS: ', NUMBER_OF_TOKENS)
 
-    data_file_path = os.path.join(get_script_path(), 'data/filtered_test_file.pgn')
+    data_file_path = os.path.join(get_workspace_path(), 'data/filtered_test_file.pgn')
 
     game_str = None
     with open(data_file_path, 'r') as f:

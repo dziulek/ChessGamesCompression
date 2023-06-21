@@ -1,7 +1,7 @@
 import unittest
 
 
-from chesskurcz.algorithms.utils import get_script_path, compare_games
+from chesskurcz.algorithms.utils import get_workspace_path, compare_games
 import io, os, sys, multiprocessing
 
 from chesskurcz.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
@@ -13,8 +13,8 @@ class Test_encoder(unittest.TestCase):
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
 
-        self.data_path = '../test_data/test_file.pgn'
-        self.path = get_script_path()
+        self.data_path = 'test_data/test_file.pgn'
+        self.path = get_workspace_path()
         self.BATCH_SIZE = int(1e4)
 
         self.encoder_one_worker = Encoder('apm', par_workers=1, batch_size=self.BATCH_SIZE)

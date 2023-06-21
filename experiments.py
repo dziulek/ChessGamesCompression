@@ -9,7 +9,7 @@ import chess
 import chess.pgn
 import datetime
 
-from chesskurcz.algorithms.utils import get_script_path
+from chesskurcz.algorithms.utils import get_workspace_path
 from chesskurcz.stats import Stats
 from chesskurcz.algorithms.encoder import Encoder
 
@@ -20,7 +20,7 @@ BATCH_SIZE = int(1e4)
 
 def main():
 
-    script_path = get_script_path()   
+    script_path = get_workspace_path()   
 
     files = ['lichess_db_standard_rated_2014-10.pgn']
 

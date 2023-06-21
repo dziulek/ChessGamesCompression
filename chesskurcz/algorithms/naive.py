@@ -8,7 +8,7 @@ import numpy as np
 
 from typing import List, Dict, Tuple, Callable
 from chesskurcz.algorithms.utils import to_binary, extract_move_idx, FOUR_1, FOUR_0, BIT_S 
-from chesskurcz.algorithms.utils import processLine, get_script_path, MOVE_REGEX, POSSIBLE_SCORES
+from chesskurcz.algorithms.utils import processLine, get_workspace_path, MOVE_REGEX, POSSIBLE_SCORES
 
 import re
 

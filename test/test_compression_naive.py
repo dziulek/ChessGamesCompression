@@ -1,6 +1,6 @@
 import unittest
 
-from chesskurcz.algorithms.utils import get_script_path
+from chesskurcz.algorithms.utils import get_workspace_path
 from chesskurcz.algorithms.encoder import Encoder
 import io, os, sys, multiprocessing
 
@@ -9,8 +9,8 @@ class Test_compression_naive(unittest.TestCase):
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
 
-        self.data_path = '../test_data/test_file.pgn'
-        self.path = get_script_path()
+        self.data_path = 'test_data/test_file.pgn'
+        self.path = get_workspace_path()
         self.BATCH_SIZE = int(1e4)
 
         self.encoder_one_worker = Encoder('naive', par_workers=1, batch_size=self.BATCH_SIZE)
