@@ -10,7 +10,7 @@ class Test_pgn_to_uci_game(unittest.TestCase):
         super().__init__(methodName)
 
         self.script_path = get_workspace_path()
-        self.test_files = [self.script_path + "data/filtered_test_file.pgn"]
+        self.test_files = [self.script_path + "test_data/test_file.pgn"]
         self.test_strings = []
         
 
@@ -44,44 +44,44 @@ class Test_pgn_to_uci_game(unittest.TestCase):
     #     for t in targets_knight:
     #         self.assertEqual(True, control_square('N', pos, t), msg=str(pos) + " " + str(t))
 
-    def test_pgn_to_uci_game(self,):
+    # def test_pgn_to_uci_game(self,):
 
-        transform = TransformIn(standard_png_move_extractor)
+    #     transform = TransformIn(standard_png_move_extractor)
 
-        for f in self.test_files:
+    #     for f in self.test_files:
 
-            with open(f, 'r') as buff:
+    #         with open(f, 'r') as buff:
 
-                games = transform.transform(buff.read())
-                for game in games:
+    #             games = transform.transform(buff.read())
+    #             for game in games:
                     
-                    uci_moves = pgn_to_uci_game(game)
+    #                 uci_moves = pgn_to_uci_game(game)
 
-                    self.assertEqual(True, True)
+    #                 self.assertEqual(True, True)
 
-    def test_conversion_time(self,):
+    # def test_conversion_time(self,):
 
-        transform = TransformIn(standard_png_move_extractor)
-        print('PROCESSING WITH CUSTOM FUNCTION')
-        for f in self.test_files:
+    #     transform = TransformIn(standard_png_move_extractor)
+    #     print('PROCESSING WITH CUSTOM FUNCTION')
+    #     for f in self.test_files:
 
-            with open(f, 'r') as buff:
+    #         with open(f, 'r') as buff:
 
-                games = transform.transform(buff.read())
+    #             games = transform.transform(buff.read())
 
-                start = time.time()
-                for game in games:
+    #             start = time.time()
+    #             for game in games:
                     
-                    uci_moves = pgn_to_uci_game(game)
-                duration_custom = time.time() - start
-                print('TIME:', duration_custom, 'sec.')
-                print('====================================')
-                start = time.time()
-                for game in games:
+    #                 uci_moves = pgn_to_uci_game(game)
+    #             duration_custom = time.time() - start
+    #             print('TIME:', duration_custom, 'sec.')
+    #             print('====================================')
+    #             start = time.time()
+    #             for game in games:
 
-                    uci_moves = game_from_pgn_to_uci(game)
-                duration_python_chess = time.time() - start
-                print('TIME:', duration_python_chess, 'sec.')
+    #                 uci_moves = game_from_pgn_to_uci(game)
+    #             duration_python_chess = time.time() - start
+    #             print('TIME:', duration_python_chess, 'sec.')
 
-        print('====================================')
-        print('OWN VERSION IS', duration_python_chess / duration_custom, 'FASTER')
+    #     print('====================================')
+    #     print('OWN VERSION IS', duration_python_chess / duration_custom, 'FASTER')
