@@ -707,6 +707,7 @@ def get_all_possible_moves(bits_per_move: int) -> List[str]:
                         moves.append(p + str(r + 1) + 'x' + DEST_FIELD)
 
         # promotions
+        pieces = ['Q', 'R', 'B', 'N']
         for i in range(8):
             for p in pieces:
                 # no capture
