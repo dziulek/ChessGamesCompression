@@ -422,7 +422,7 @@ def compare_games(true: str, decompressed: str) -> bool:
     '''
         Since game representation may be different
         this function compares games of potentially 
-        different representations. 
+        different representations+_
     '''
 
     a = chess.pgn.read_game(io.StringIO(true))
@@ -730,5 +730,4 @@ def main():
     pass
 
 if __name__ == "__main__":
-
-    main()
+    pass

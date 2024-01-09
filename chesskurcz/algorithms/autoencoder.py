@@ -1,10 +1,17 @@
 import torch
 from torch import nn
 import numpy as np
+from typing import List, Dict, Any, Tuple
+import os, pathlib
 
-from chesskurcz.algorithms.autoencoder_utils import default_uci_move_repr
+import chess.pgn
 
-class CustomDataset(torch.utils.data.Dataset):
+from chesskurcz.algorithms.autoencoder_utils import default_uci_move_repr, DEF_REPR_T_SIZE
+from chesskurcz.algorithms import encoder
+from chesskurcz.algorithms.transform import game_from_pgn_to_uci
+
+
+class ChessGameDataset(torch.utils.data.Dataset):
     def __init__(self, data, targets, transform=None):
         self.data = data
         self.targets = targets
@@ -22,7 +29,7 @@ class CustomDataset(torch.utils.data.Dataset):
         
         return image, target
 
-class Decoder(nn.Module):
+class DecoderNN(nn.Module):
 
     def __init__(self, output_size=(5, 100, 8), batch_size=1024, channels=10, latent_size=6) -> None:
         super().__init__()
@@ -57,16 +64,16 @@ class Decoder(nn.Module):
 
         return x
 
-class Encoder(nn.Module):
+class EncoderNN(nn.Module):
 
     def __init__(self, input_size=(5, 100, 8), kernel_channels=16, latent_size=6) -> None:
         super().__init__()
 
         self.model = nn.Sequential(
             nn.Conv2d(in_channels=5, out_channels=kernel_channels, kernel_size=(2,8)),
+   
             nn.ReLU(),
             nn.Conv2d(kernel_channels, kernel_channels, (2, 1)),
-            nn.ReLU(),
             nn.Conv2d(kernel_channels, 1, (3, 1)),
             nn.ReLU(),
             nn.Flatten(),
@@ -86,37 +93,62 @@ class AutoEncoder(nn.Module):
     def __init__(self, max_game_len=200, batch_size=1024, dict_dim=64 * 63, emb_dim=10, channels=4, latent_size=6) -> None:
         super().__init__()
 
-        self.encoder = Encoder(
+        self.encoder = EncoderNN(
             (5, 100, 8), channels, latent_size
         )
-        self.decoder = Decoder(
+        self.decoder = DecoderNN(
             (5, 100, 8), batch_size, channels, latent_size
         )
-
+        # dummy commment
     def forward(self, x):
 
         latent = self.encoder(x)
 
         return self.decoder(latent)
-        
+
+def read_games(path: str) -> List[List[str]]:
+
+    games = []
+
+    with open(path, 'r') as f:
+        while True:
+            game = chess.pgn.read_game(f)
+            if game is None: break
+            game_uci = game_from_pgn_to_uci(game)
+            games.append(game_uci)
+
+    return games
+
 def main():
 
-    # generate random set
+    pgn_data_path = os.path.join(pathlib.Path(__file__).absolute().parents[2], 'data', 'test_file.pgn')
+    games_data = read_games(pgn_data_path)
+
+    seq_len = max([len(g) for g in games_data])
+
+    for game in games_data:
+        game += [''] * (seq_len - len(game))
+        for i, move in enumerate(game):
+            game[i] = default_uci_move_repr(move)
+
+        game = torch.concatenate(game)
+
     seq_len = 200
     dict_dim = 100
 
     BATCH_SIZE = 16
 
     N = BATCH_SIZE * 40
+
+    enc = encoder.Encoder(alg='apm', par_workers=4, batch_size=10000)
+    games = enc.decode()
     
     seq_origin = torch.randint(0, dict_dim, (N, seq_len))
-    data = torch.reshape(nn.functional.one_hot(torch.flatten(seq_origin), dict_dim), (N, seq_len, -1))
-
+    data = torch.reshape(nn.functional.one_hotK(torch.flatten(seq_origin), dict_dim), (N, seq_len, -1))
     # print(seq_origin)
-    # print(data)
-
-    dataset = CustomDataset(data, seq_origin)
-
+    # print(data) dummy comment
+    dataset = ChessGameDataset(data, seq_origin)
+    
     train_loader = torch.utils.data.DataLoader(dataset, BATCH_SIZE, shuffle=True)
 
     model = AutoEncoder(seq_len, BATCH_SIZE, dict_dim, latent_size=10)

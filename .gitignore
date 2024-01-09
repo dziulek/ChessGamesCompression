@@ -130,4 +130,4 @@ dmypy.json
 
 /data
 /compressed_data
-/vscode
+/.vscode
