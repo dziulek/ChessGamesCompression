@@ -1,7 +1,7 @@
 import io, os, sys
 
 from chesskurcz.algorithms.transform import TransformIn, TransformOut
-from chesskurcz.algorithms.utils import standard_png_move_extractor
+from chesskurcz.algorithms.util.utils import standard_png_move_extractor
 from chesskurcz.stats import Stats
 
 import chesskurcz.algorithms.rank, chesskurcz.algorithms.naive
@@ -63,53 +63,56 @@ class Encoder:
         
         games_left = max_games
         self.__games_cnt.value = 0
+        
+        try:
+            with open(path, _m) as in_stream:
 
-        with open(path, _m) as in_stream:
+                if self.open_mode and binary: 
+                    in_stream.seek(self.__bytes_read_tot.value)
 
-            if self.open_mode and binary: 
-                in_stream.seek(self.__bytes_read_tot.value)
+                while 1:
 
-            while 1:
-
-                if not Q.qsize() < 5: continue
-                
-                if binary:
-
-                    read_games = getattr(self.module_alg, 'read_games_' + self.alg)
-                    enc_data, g_no = read_games(in_stream, self.batch_size, games_left)
-                    games_left -= g_no
-                    with self.__games_cnt.get_lock():
-                        self.__games_cnt.value += g_no
+                    if not Q.qsize() < 5: continue
                     
-                    if not enc_data:
-                        break
+                    if binary:
 
-                    Q.put(tuple([enc_data, g_no]))
-                    with self.__bytes_read_tot.get_lock():
-                        self.__bytes_read_tot.value += len(enc_data)
-
-                else: 
-                    d = ''.join(in_stream.readlines(self.batch_size))
-                    if not d: break
-                    Q.put(d)
-                
-                    with self.__bytes_read_tot.get_lock():
-                        self.__bytes_read_tot.value += len(d)
-
-                if verbose:
-                    if not self.open_mode:
-                        with self.__bytes_read_tot.get_lock():
-                            logger.printProgressBar(
-                                self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
-                            )
-                    else:
+                        read_games = getattr(self.module_alg, 'read_games_' + self.alg)
+                        enc_data, g_no = read_games(in_stream, self.batch_size, games_left)
+                        games_left -= g_no
                         with self.__games_cnt.get_lock():
-                            logger.printProgressBar(
-                                self.__games_cnt.value, max_games, prefix='Progress', suffix='Complete'
-                            )
-                
-                if self.__games_cnt.value == max_games:
-                    break
+                            self.__games_cnt.value += g_no
+                        
+                        if not enc_data:
+                            break
+
+                        Q.put(tuple([enc_data, g_no]))
+                        with self.__bytes_read_tot.get_lock():
+                            self.__bytes_read_tot.value += len(enc_data)
+
+                    else: 
+                        d = ''.join(in_stream.readlines(self.batch_size))
+                        if not d: break
+                        Q.put(d)
+                    
+                        with self.__bytes_read_tot.get_lock():
+                            self.__bytes_read_tot.value += len(d)
+
+                    if verbose:
+                        if not self.open_mode:
+                            with self.__bytes_read_tot.get_lock():
+                                logger.printProgressBar(
+                                    self.__bytes_read_tot.value, file_size, prefix='Progress', suffix='Complete'
+                                )
+                        else:
+                            with self.__games_cnt.get_lock():
+                                logger.printProgressBar(
+                                    self.__games_cnt.value, max_games, prefix='Progress', suffix='Complete'
+                                )
+                    
+                    if self.__games_cnt.value == max_games:
+                        break
+        except Exception as e:
+            print(f"[ERROR] Stopping process, due to the following exception {repr(e)}")
 
         for _ in range(self.par_workers): Q.put('kill')
 

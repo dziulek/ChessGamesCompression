@@ -4,7 +4,7 @@ import src
 import multiprocessing
 import copy
 
-from chesskurcz.algorithms.utils import get_workspace_path
+from chesskurcz.algorithms.util.utils import get_workspace_path
 from chesskurcz.algorithms.encoder import Encoder
 import io, os, sys
 

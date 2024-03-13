@@ -9,8 +9,8 @@ from typing import List, Dict, Tuple
 import threading
 import copy
 
-from chesskurcz.algorithms.utils import sort_moves, move_code, move_from_code, FOUR_0, FOUR_1, BIT_S
-from chesskurcz.algorithms.utils import get_workspace_path, to_binary, processLine, extract_move_idx
+from chesskurcz.algorithms.util.utils import sort_moves, move_code, move_from_code, FOUR_0, FOUR_1, BIT_S
+from chesskurcz.algorithms.util.utils import get_workspace_path, to_binary, processLine, extract_move_idx
 
 BATCH_SIZE = int(1e5)
 

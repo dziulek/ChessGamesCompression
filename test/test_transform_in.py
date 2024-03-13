@@ -1,6 +1,6 @@
 import unittest
 
-from chesskurcz.algorithms.utils import get_workspace_path, standard_png_move_extractor, POSSIBLE_SCORES
+from chesskurcz.algorithms.util.utils import get_workspace_path, standard_png_move_extractor, POSSIBLE_SCORES
 from chesskurcz.algorithms.transform import TransformIn
 
 import re, io

@@ -476,6 +476,10 @@ def time_elapsed():
     
     return decorator
 
+def compression_ratio(before, after) -> float:
+
+    return 1 - os.path.getsize(after) / os.path.getsize(before)
+
 def atomic_operation(sem: threading.Semaphore=None):
 
     def decorator(func: Callable):

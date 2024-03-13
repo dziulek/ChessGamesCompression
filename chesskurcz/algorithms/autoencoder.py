@@ -1,12 +1,12 @@
 import torch
 from torch import nn
 import numpy as np
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 import os, pathlib
 
 import chess.pgn
 
-from chesskurcz.algorithms.autoencoder_utils import default_uci_move_repr, DEF_REPR_T_SIZE
+from chesskurcz.algorithms.util.autoencoder_utils import default_uci_move_repr, DEF_REPR_T_SIZE
 from chesskurcz.algorithms import encoder
 from chesskurcz.algorithms.transform import game_from_pgn_to_uci
 
@@ -21,73 +21,135 @@ class ChessGameDataset(torch.utils.data.Dataset):
         return self.data.shape[0]
     
     def __getitem__(self, index):
-        image = self.data[index]
+        game = self.data[index]
         target = self.targets[index]
         
         if self.transform:
-            image = self.transform(image)
+            game = self.transform(game)
         
-        return image, target
+        return game, target
 
 class DecoderNN(nn.Module):
 
-    def __init__(self, output_size=(5, 100, 8), batch_size=1024, channels=10, latent_size=6) -> None:
+    def __init__(self, 
+                 output_size: Tuple, 
+                 batch_size: int, 
+                 dense: List[int],
+                 conv_levels: int,
+                 channels: int | List[int],
+                 kernels: int | Tuple | List[Tuple | int],
+                 latent_size=6) -> None:
         super().__init__()
 
         self.max_game_len = output_size[1]
         self.emb_dim = output_size[2]
         self.batch_size = batch_size
 
-        self.fully_layers = nn.Sequential(
-            nn.Linear(in_features=latent_size, out_features=25),
-            nn.ReLU(),
-            nn.Linear(in_features=25, out_features=50),
-            nn.ReLU(),
-            nn.Linear(in_features=50, out_features=96),
-            nn.ReLU()
-        )
+        self.fully_layers = None
+        if len(dense) > 0:
 
-        self.conv_layers = nn.Sequential(
-            nn.ConvTranspose2d(1, channels, (3, 1)),
-            nn.ReLU(),
-            nn.ConvTranspose2d(channels, channels, (2, 1)),
-            nn.ReLU(),
-            nn.ConvTranspose2d(channels, 5, (2,8))
-        )
+            self.fully_layers = nn.Sequential()
+            dense.insert(0, latent_size)
+            for i in range(dense[:-1]):
+                self.fully_layers.add_module(
+                    name=f"DENSE:{dense[i]}:{dense[i + 1]}",
+                    module=nn.Linear(in_features=dense[i], out_features=dense[i + 1])
+                )
+                self.fully_layers.add_module(nn.ReLU())
+        
+        self.conv_layers = None
+        if conv_levels:
+            if isinstance(channels, int):
+                channels = [channels for i in range(conv_levels)]
+            if isinstance(kernels, int):
+                kernels = (kernels, kernels)
+            if isinstance(kernels, Tuple):
+                kernels = [kernels for i in range(conv_levels)]
+
+        self.conv_layers = nn.Sequential()
+        channels.insert(0, 1)
+        for i in range(channels[:-1]):
+            self.conv_layers.add_module(
+                name=f"TRANS_CONV:{channels[i]}:{channels[i + 1]}:({kernels[i][0], kernels[i][1]})",
+                module=nn.ConvTranspose2d(
+                    in_channels=channels[i],
+                    out_channels=channels[i + 1],
+                    kernel_size=kernels[i],
+                    stride=1
+                )
+            )
 
     def forward(self, x):
+        
+        if self.fully_layers is not None:
+            x = self.fully_layers(x)
+        x = torch.reshape(x, (self.batch_size, 1, -1, 1))
 
-        x = self.fully_layers(x)
-        x = torch.reshape(x, (self.batch_size, 1, 96, 1))
-        x = self.conv_layers(x)
+        if self.conv_layers is not None:
+            x = self.conv_layers(x)
         x = torch.reshape(x, (self.batch_size, 1, self.max_game_len, self.emb_dim))
 
         return x
 
 class EncoderNN(nn.Module):
 
-    def __init__(self, input_size=(5, 100, 8), kernel_channels=16, latent_size=6) -> None:
+    def __init__(self, 
+                 input_size: Tuple, 
+                 batch_size: int, 
+                 dense: List[int],
+                 conv_levels: int,
+                 channels: int | List[int],
+                 kernels: int | Tuple | List[Tuple | int]) -> None:
         super().__init__()
 
-        self.model = nn.Sequential(
-            nn.Conv2d(in_channels=5, out_channels=kernel_channels, kernel_size=(2,8)),
-   
-            nn.ReLU(),
-            nn.Conv2d(kernel_channels, kernel_channels, (2, 1)),
-            nn.Conv2d(kernel_channels, 1, (3, 1)),
-            nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(in_features=input_size[1] - 4, out_features=50),
-            nn.ReLU(),
-            nn.Linear(in_features=50, out_features=25),
-            nn.ReLU(),            
-            nn.Linear(in_features=25, out_features=latent_size),
-            nn.ReLU() 
-        )
+        self.max_game_len = input_size[1]
+        self.emb_dim = input_size[2]
+        self.batch_size = batch_size
+
+        self.fully_layers = None
+        if len(dense) > 0:
+
+            self.fully_layers = nn.Sequential()
+            dense.insert(0, latent_size)
+            for i in range(dense[:-1]):
+                self.fully_layers.add_module(
+                    name=f"DENSE:{dense[i]}:{dense[i + 1]}",
+                    module=nn.Linear(in_features=dense[i], out_features=dense[i + 1])
+                )
+                self.fully_layers.add_module(nn.ReLU())
+        
+        self.conv_layers = None
+        if conv_levels:
+            if isinstance(channels, int):
+                channels = [channels for _ in range(conv_levels)]
+            if isinstance(kernels, int):
+                kernels = (kernels, kernels)
+            if isinstance(kernels, Tuple):
+                kernels = [kernels for _ in range(conv_levels)]
+
+        self.conv_layers = nn.Sequential()
+        channels.insert(0, 1)
+        for i in range(channels[:-1]):
+            self.conv_layers.add_module(
+                name=f"CONV:{channels[i]}:{channels[i + 1]}:({kernels[i][0], kernels[i][1]})",
+                module=nn.Conv2d(
+                    in_channels=channels[i],
+                    out_channels=channels[i + 1],
+                    kernel_size=kernels[i],
+                    stride=1
+                )
+            )
 
     def forward(self, x):
 
-        return self.model(x.type(torch.float32))
+        if self.conv_layers is not None:
+            x = self.conv_layers(x)
+        x = nn.Flatten()(x)
+
+        if self.fully_layers is not None:
+            x = self.fully_layers(x)
+        
+        return x
         
 class AutoEncoder(nn.Module):
     def __init__(self, max_game_len=200, batch_size=1024, dict_dim=64 * 63, emb_dim=10, channels=4, latent_size=6) -> None:

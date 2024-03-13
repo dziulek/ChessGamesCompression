@@ -9,7 +9,7 @@ import chess
 import chess.pgn
 import datetime
 
-from chesskurcz.algorithms.utils import get_workspace_path
+from chesskurcz.algorithms.util.utils import get_workspace_path
 from chesskurcz.stats import Stats
 from chesskurcz.algorithms.encoder import Encoder
 

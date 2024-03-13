@@ -61,6 +61,10 @@ class TransformIn:
         
         self.drop_patterns = drop_pattern
         self.move_extractor = move_extractor
+    
+    def __call__(self, _in: str) -> List[List[str]]:
+
+        return self.transform(_in)
 
     def transform(self, _in: str) -> List[List[str]]:
 
@@ -74,13 +78,17 @@ class TransformOut:
 
     def __init__(self, move_repr: Callable=None, sep_games='\n', sep_moves=' ') -> None:
         
-        self.id_fun = lambda m: m
+        self.identity_function = lambda m: m
 
         if move_repr is not None:
             self.move_representation = move_repr
-        else: self.move_representation = self.id_fun
+        else: self.move_representation = self.identity_function
         self.sep_moves = sep_moves
         self.sep_games = sep_games
+    
+    def __call__(self, _in: List[List[str]]) -> str:
+
+        return self.transform(_in)
 
     def transform(self, _in: List[List[str]]) -> str:
 

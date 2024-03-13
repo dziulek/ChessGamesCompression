@@ -1,11 +1,10 @@
 import unittest
 
 
-from chesskurcz.algorithms.utils import get_workspace_path, compare_games
+from chesskurcz.algorithms.util.utils import get_workspace_path, compare_games
 import io, os, sys, multiprocessing
 
 from chesskurcz.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
-
 from chesskurcz.algorithms.encoder import Encoder
 
 class Test_encoder(unittest.TestCase): 

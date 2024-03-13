@@ -1,7 +1,7 @@
 import unittest, time
 
 
-from chesskurcz.algorithms.utils import pgn_to_uci_move, pgn_to_uci_game, control_square, get_workspace_path, standard_png_move_extractor
+from chesskurcz.algorithms.util.utils import pgn_to_uci_move, pgn_to_uci_game, control_square, get_workspace_path, standard_png_move_extractor
 from chesskurcz.algorithms.transform import TransformIn, game_from_pgn_to_uci
 
 class Test_pgn_to_uci_game(unittest.TestCase): 
