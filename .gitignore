@@ -131,3 +131,6 @@ dmypy.json
 /data
 /compressed_data
 /.vscode
+
+*.o
+*.a
