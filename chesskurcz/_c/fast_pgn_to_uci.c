@@ -74,6 +74,12 @@ void init_board_utils(BoardUtil * butil) {
     }
 
     int rank, file, diag, xq, yq;
+    int knight_shifts[] = {-17, -15, -10, -6, 6, 10, 15, 17};
+    int knight_shifts_x[] = {-2, -1, 1, 2, -2, -1, 1, 2};
+    int knight_shifts_y[] = {1, 2, 2, 1, -1, -2, -2, -1};
+    int king_shifts_x[] = {0, 1, 1, 1, 0, -1, -1, -1};
+    int king_shifts_y[] = {1, 1, 0, -1, -1, -1, 0, 1};
+    
     for(int p = 0; p < NUM_PIECE_TYPE; p++) {
 
         switch (p)
@@ -81,11 +87,19 @@ void init_board_utils(BoardUtil * butil) {
         case KNIGHT: 
 
             for(int i = 0; i < 64; i ++) {
-                BitBoard mask = 0;
+                BitBoard mask = butil->ZEROS;
+                for(int s = 0; s < 8; s ++) {
 
+                    rank = rank_from_square(i) + knight_shifts_y[s];
+                    file = file_from_square(i) + knight_shifts_x[s];
+
+                    if(rank < 0 || rank > 7 || file < 0 || file > 7) continue;
+                    mask |= bit_lsb(8 * rank + file);
+                }
+                butil->bit_piece_moves[KNIGHT][i] = mask;
             }            
             break;
-    case BISHOP:
+        case BISHOP:
             for(int i = 0; i < 64; i ++) {
                 BitBoard *bb = &butil->bit_piece_moves[p][i];
                 *bb = butil->ZEROS;
@@ -95,8 +109,50 @@ void init_board_utils(BoardUtil * butil) {
                 *bb |= _get_diag_dec(i, butil);
             }        
             break;
-        default:
+        case ROOK:
+            for(int i = 0; i < 64; i ++) {
+                BitBoard mask = butil->ZEROS;
+                butil->bit_piece_moves[ROOK][i] = RANKS[rank_from_square(i)] | FILES[file_from_square(i)];
+            }
             break;
+        case QUEEN:
+            for(int i = 0; i < 64; i ++) {
+                butil->bit_piece_moves[QUEEN][i] = butil->bit_piece_moves[ROOK][i] | \
+                                                   butil->bit_piece_moves[BISHOP][i];
+            }
+            break;
+        case KING:
+            for(int i = 0; i < 64; i ++) {
+                BitBoard mask = butil->ZEROS;
+                for(int s = 0; s < 8; s++) {
+                    rank = rank_from_square(i) + king_shifts_y[s];
+                    file = file_from_square(i) + king_shifts_x[s];
+
+                    if(rank < 0 || rank > 7 || file < 0 || file > 7) continue;
+
+                    mask |= bit_lsb(8 * rank + file);
+                }
+                butil->bit_piece_moves[KING][i] = mask;
+            } 
+            break;
+        default:
+            // Pawns
+            // First white pawns
+            for(int i = 8; i < 56; i ++) {
+                BitBoard white_mask = butil->ZEROS, black_mask = butil->ZEROS;
+                // White pawn
+                if(rank_from_square(i) == 1) {
+                    white_mask |= bit_lsb(i + 16);
+                }
+                white_mask |= bit_lsb(i + 8);
+                // Captures
+                
+                // Black pawn
+                if(rank_from_square(i) == 6) {
+                    black_mask |= bit_lsb(i - 16);
+                }
+                black_mask |= bit_lsb(i - 8);
+            }
         }
     }
 }
@@ -119,7 +175,6 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
 
         src_square = (1ULL << 64) - 1ULL;
         dest_square = (1ULL << 64) - 1ULL;
-        log_bitboard(src_square);NEWLINE;
 
         status = regexec(&regex, head, NUM_GROUPS, match_groups, 0);
         
@@ -188,7 +243,7 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
             while(src_square){
                 int lsb = lsb_square(src_square);
                 src_square = clear_lsb(src_square);
-                if(!_is_pinned(&pos, piece, lsb)) {
+                if(!_is_pinned(&pos, butil, piece, lsb)) {
                     
                     pos.state[pos.color_to_move][piece] &= (~bit_lsb(lsb));
                     pos.state[pos.color_to_move][piece] |= dest_square;
@@ -207,7 +262,7 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
     log_bitboard(pos.state[WHITE][KNIGHT]);
 }
 
-Bool _is_pinned(Position * pos, Piece piece, Square square) {
+Bool _is_pinned(Position * pos, BoardUtil * butil, Piece piece, Square square) {
 
     return false;
 }
@@ -219,29 +274,9 @@ int _pop_count(BitBoard b) {
     return c;
 }
 
-Bool _can_move(Position * pos, Piece piece, Square from, Square to) {
+Bool _can_move(Position * pos, BoardUtil * butil, Piece piece, Square from, Square to) {
 
-    switch (piece)
-    {
-    case KNIGHT:
-        
-        break;
-    case BISHOP:
-
-        break;
-    case ROOK:
-
-        return false;
-    case QUEEN:
-        return false;
-    case KING:
-        return false;
-    default:
-        // Pawn
-        break;
-    }
     return true;
-
 }
 
 BitBoard _get_diag_inc(Square square, BoardUtil * butil) {
@@ -265,4 +300,51 @@ BitBoard _get_diag_dec(Square square, BoardUtil * butil) {
         return butil->diagonals[0][1][14 - rank - file];
     }
     return butil->diagonals[1][0][rank + file];
+}
+
+Bool _out_of_board(Square square, int shift) {
+
+    int rank = rank_from_square(square);
+    int file = file_from_square(square);
+
+    rank += (shift / 8);
+    file += (shift % 8);
+
+    if(rank < 0 || rank > 7 || file < 0 || file >7) 
+        return false;
+
+    return true;   
+}
+
+BitBoard _path_s(Square from, Square to, BoardUtil * butil) {
+
+    BitBoard path_mask = butil->ZEROS;
+    int shift = to - from;
+    int sign_shift = sign(shift);
+    int step;
+    if(rank_from_square(from) == rank_from_square(to)) {
+        // Rank
+        step = - sign_shift * 1;
+    }
+    else if(abs(shift) == 63) {
+        step = - sign_shift * 9;
+    }
+    else if(shift % 7 == 0) {
+        // Decreasing diagonal
+        step = - sign_shift * 7;
+        
+    } else if(shift % 9 == 0) {
+        // Increasing diagonal
+        step = - sign_shift * 9;
+
+    } else if(shift % 8 == 0) {
+        step = - sign_shift * 8;
+    }
+    BitBoard dest = bit_lsb(to);
+    int head = to + step;
+    while(head != from) {
+        path_mask |= bit_lsb(head);
+        head += step;
+    }
+    return path_mask;
 }

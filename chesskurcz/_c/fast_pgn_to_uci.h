@@ -137,14 +137,14 @@ static BitBoard RANKS[8] = {R1, R2, R3, R4, R5, R6, R7, R8};
 static BitBoard FILES[8] = {FA, FB, FC, FD, FE, FF, FG, FH};
 
 typedef enum {
-    UP = -8,
-    UP_RIGHT = -9,
-    RIGHT = -1,
-    DOWN_RIGHT = 7,
-    DOWN = 8,
-    DOWN_LEFT = 9,
-    LEFT = 1,
-    UP_LEFT = -7
+    UP = 8,
+    UP_RIGHT = 9,
+    RIGHT = 1,
+    DOWN_RIGHT = -7,
+    DOWN = -8,
+    DOWN_LEFT = -9,
+    LEFT = -1,
+    UP_LEFT = 7
 } Dir;
 
 typedef enum {
@@ -214,9 +214,13 @@ extern Move * parse_pgn_game(char *, Bool, BoardUtil *);
 extern int _deduce_from(char *, Cpos, Cpos, Position *);
 extern int _deduce_to(char *, Cpos, Cpos, Position *);
 extern int _deduce_piece(char *, Cpos, Cpos, Position *);
-extern Bool _is_pinned(Position *, Piece, Square);
-extern Bool _can_move(Position *, Piece, Square, Square);
+extern Bool _is_pinned(Position *, BoardUtil *, Piece, Square);
+extern Bool _can_move(Position *, BoardUtil *, Piece, Square, Square);
 
+extern inline BitBoard _path_s(Square, Square, BoardUtil *);
+extern Bool _free_path_s(Square, Square);
+extern Bool _free_path_b(BitBoard, BitBoard);
+extern Bool _out_of_board(Square, int);
 extern int _do_move(Position *);
 extern int _pop_count(BitBoard);
 extern BitBoard _get_diag_dec(Square, BoardUtil *);
