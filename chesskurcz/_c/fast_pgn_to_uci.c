@@ -38,6 +38,10 @@ void init_board_utils(BoardUtil * butil) {
     butil->ZEROS = 0ULL;
     butil->ONES = (1ULL << 64) - 1ULL;
 
+    butil->pinnable_pieces[0] = QUEEN;
+    butil->pinnable_pieces[1] = ROOK;
+    butil->pinnable_pieces[2] = BISHOP;
+
     char piece_char[10] = {'q', 'Q', 'k', 'K', 'b', 'B', 'R', 'r', 'n', 'N'};
     Piece piece_num[10] = {
         QUEEN, QUEEN,
@@ -155,6 +159,26 @@ void init_board_utils(BoardUtil * butil) {
             }
         }
     }
+
+    for(int c = 0; c < 2; c ++) {
+        butil->clear_mask_castle[c][0] = bit_lsb(c * 56  + 0) | bit_lsb(c * 56 + 4);
+        butil->clear_mask_castle[c][1] = bit_lsb(c * 56 + 4) | bit_lsb(c * 56 + 7);
+
+        butil->set_mask_castle[c][0][0] = bit_lsb(c * 56 + 2);
+        butil->set_mask_castle[c][0][1] = bit_lsb(c * 56 + 3);
+
+        butil->set_mask_castle[c][1][0] = bit_lsb(c * 56 + 6);
+        butil->set_mask_castle[c][1][1] = bit_lsb(c * 56 + 5);
+    }
+
+    for(int i = 0; i < 64; i ++) {
+        if(i % 9 == 0) butil->square_diff[i] = 9;
+        else if(i % 8 == 0) butil->square_diff[i] = 8;
+        else if(i % 7 == 0) butil->square_diff[i] = 7;
+        else if(i < 8) butil->square_diff[i] = 1;
+        else butil->square_diff[i] = 0;
+    }
+    butil->square_diff[63] = 9;
 }
 
 Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
@@ -215,7 +239,6 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
                 int l = match_groups[MOVE].rm_eo - match_groups[MOVE].rm_so;
                 memcpy(move, head + match_groups[MOVE].rm_so, l);
                 move[l] = '\0';
-                ERROR("No piece on the source square.", &pos, move);
                 return NULL;
             }
             break;
@@ -239,11 +262,11 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
             }
             break;
         default:
-            // resolve ambiguouity
+            // resolve ambiguity 
             while(src_square){
                 int lsb = lsb_square(src_square);
                 src_square = clear_lsb(src_square);
-                if(!_is_pinned(&pos, butil, piece, lsb)) {
+                if(!butil->square_diff[abs(lsb - lsb(dest_square))] && !_is_pinned(&pos, butil, piece, lsb)) {
                     
                     pos.state[pos.color_to_move][piece] &= (~bit_lsb(lsb));
                     pos.state[pos.color_to_move][piece] |= dest_square;
@@ -264,6 +287,30 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
 
 Bool _is_pinned(Position * pos, BoardUtil * butil, Piece piece, Square square) {
 
+    // We need to check that there is a clear path between:
+    // * piece and king
+    // * piece and opponent piece 
+    // * opponent piece must attack the king (not directly)
+    Color color = pos->color_to_move;
+    Square king_square = lsb_square(pos->state[color][KING]);
+    int diff = king_square - square;
+    int step = -sign(diff) * butil->square_diff[abs(diff)];
+    BitBoard occupied_squares = occupied(pos->state);
+    
+    if(butil->square_diff[abs(diff)]) {
+        if(_free_path_s(pos, king_square, square, butil)) {
+            int head = square + step;
+            while(!_out_of_board(head, 0) && (occupied_squares & bit_lsb(head)) == 0) {
+                head += step;
+            }
+            if(_out_of_board(head, 0)) return false;
+            if((bit_lsb(head) & occupied_color(pos->state, color)) != 0) return false;
+            for(int i = 0; i < 3; i++) {
+                if(bit_lsb(head) & pos->state[opponent(color)][butil->pinnable_pieces[i]])
+                    return true;
+            }
+        }
+    }
     return false;
 }
 
@@ -311,9 +358,9 @@ Bool _out_of_board(Square square, int shift) {
     file += (shift % 8);
 
     if(rank < 0 || rank > 7 || file < 0 || file >7) 
-        return false;
+        return true;
 
-    return true;   
+    return false;   
 }
 
 BitBoard _path_s(Square from, Square to, BoardUtil * butil) {
@@ -347,4 +394,29 @@ BitBoard _path_s(Square from, Square to, BoardUtil * butil) {
         head += step;
     }
     return path_mask;
+}
+
+Bool _free_path_b(Position * pos, BitBoard from, BitBoard to, BoardUtil * butil) {
+
+    return _free_path_s(pos, lsb(from), lsb(to), butil);
+}
+
+Bool _free_path_s(Position * pos, Square from, Square to, BoardUtil * butil) {
+
+    BitBoard path_mask = _path_s(from, to, butil) & occupied(pos->state);
+    return path_mask == 0;
+}
+
+void clear_position(Position * pos) {
+
+    for(int i = 0; i < NUM_PIECE_TYPE; i ++) {
+        pos->state[WHITE][i] = 0;
+        pos->state[BLACK][i] = 0;
+    }
+    pos->color_to_move = WHITE;
+}
+
+void put_piece(Position * pos, Piece piece, Square sq, Color color) {
+
+    pos->state[color][piece] = bit_lsb(sq);
 }

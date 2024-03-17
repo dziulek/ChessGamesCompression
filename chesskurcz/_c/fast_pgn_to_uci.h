@@ -4,7 +4,14 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
+#define __ASSERT(v, pos, mess, move_pgn) {\
+    if(!v) {\
+        ERROR(mess, pos, move_pgn);\
+        assert(0);\
+    }\
+}
 #define NEWLINE printf("\n");
 #define log_bitboard(bb) {\
     char str[8][9];\
@@ -19,19 +26,27 @@
         printf("%s\n", str[i]);\
     }\
 }
+
 #define ERROR(mess, pos, move_pgn) {\
     printf("ERROR: ");printf(mess);NEWLINE;\
     printf("ERROR: Parsing stopped at: %s", move_pgn);NEWLINE;\
     if(pos != NULL) {\
-        for(int col = 0; col < 2; col ++) {\
-            printf("%s", col_names[col]);NEWLINE;\
-            for(int i = 0; i < NUM_PIECE_TYPE; i ++) {\
-                printf("%s", piece_names[i]);NEWLINE;\
-                log_bitboard((pos)->state[col][i]);\
-            }NEWLINE;\
-        }\
+        PRINT_BOARD(pos);\
     }\
 }
+
+#define PRINT_BOARD(pos) {\
+    for(int col = 0; col < 2; col ++) {\
+        printf("%s", col_names[col]);NEWLINE;\
+        for(int i = 0; i < NUM_PIECE_TYPE; i ++) {\
+            printf("%s", piece_names[i]);NEWLINE;\
+            log_bitboard(pos->state[col][i]);\
+        }NEWLINE;\
+    }\
+    printf("CASTLE RIGHTS");NEWLINE;\
+}
+    // printf("WHITE: %d", pos->castle_rights[WHITE]);NEWLINE;
+    // printf("BLACK: %d", pos->castle_rights[BLACK]);NEWLINE;
 
 typedef u_int16_t Uci;
 // Representation of a move
@@ -192,9 +207,13 @@ typedef struct {
     // If it is a pawn move of player with color c:
     // bit_piece_moves[p + c][n]
     BitBoard bit_piece_moves[NUM_PIECE_TYPE + 1][64];
+    // To get Files/Ranks/Diagonals for given difference 
+    // of two squares
+    int square_diff[64];
+    Piece pinnable_pieces[3];
 
     BitBoard clear_mask_castle[2][2]; 
-    BitBoard set_mask_castle[2][2];
+    BitBoard set_mask_castle[2][2][2];
 
 } BoardUtil;
 
@@ -218,10 +237,13 @@ extern Bool _is_pinned(Position *, BoardUtil *, Piece, Square);
 extern Bool _can_move(Position *, BoardUtil *, Piece, Square, Square);
 
 extern inline BitBoard _path_s(Square, Square, BoardUtil *);
-extern Bool _free_path_s(Square, Square);
-extern Bool _free_path_b(BitBoard, BitBoard);
+extern Bool _free_path_s(Position *, Square, Square, BoardUtil *);
+extern Bool _free_path_b(Position *, BitBoard, BitBoard, BoardUtil *);
 extern Bool _out_of_board(Square, int);
 extern int _do_move(Position *);
 extern int _pop_count(BitBoard);
 extern BitBoard _get_diag_dec(Square, BoardUtil *);
 extern BitBoard _get_diag_inc(Square, BoardUtil *);
+extern void clear_position(Position *);
+extern void put_piece(Position *, Piece, Square, Color);
+extern void remove_piece(Position *, Piece, Square);
