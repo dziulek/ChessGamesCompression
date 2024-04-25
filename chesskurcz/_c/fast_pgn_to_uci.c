@@ -264,14 +264,14 @@ Move * parse_pgn_game(char * game_pgn, Bool supress_errors, BoardUtil * butil) {
         default:
             // resolve ambiguity 
             while(src_square){
-                int lsb = lsb_square(src_square);
+                Square to_square = lsb_square(src_square);
                 src_square = clear_lsb(src_square);
-                if(!butil->square_diff[abs(lsb - lsb(dest_square))] && !_is_pinned(&pos, butil, piece, lsb)) {
+                if(!butil->square_diff[abs(to_square - lsb_square(dest_square))] && !_is_pinned(&pos, butil, piece, to_square)) {
                     
-                    pos.state[pos.color_to_move][piece] &= (~bit_lsb(lsb));
+                    pos.state[pos.color_to_move][piece] &= (~bit_lsb(to_square));
                     pos.state[pos.color_to_move][piece] |= dest_square;
                     if(promotion != NULL_PIECE) {
-                        pos.state[pos.color_to_move][promotion] |= bit_lsb(lsb);
+                        pos.state[pos.color_to_move][promotion] |= bit_lsb(to_square);
                     }
                     break;
                 }

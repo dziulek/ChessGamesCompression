@@ -1,4 +1,5 @@
 import os, sys, io
+import json
 from copy import deepcopy
 import time
 from pathlib import Path
@@ -10,6 +11,7 @@ import zstandard
 import chess
 import logging
 from chesskurcz.logger import printProgressBar
+from chesskurcz.stats import Stats
 
 DEF_OUTPUT_PATH = Path(__file__).absolute().parents[1] / 'datasets'
 READ_SIZE = 32768
@@ -60,6 +62,8 @@ def main():
     parser.add_argument('--representation', '-r', default='uci')
     parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('--overwrite', '-w', action='store_true')
+    parser.add_argument('--labels', '-l', type=str, default=None)
+    parser.add_argument('--collect-stats', '-c', action='store_true')
 
     args = parser.parse_args()
 
@@ -80,7 +84,15 @@ def main():
         mode = 'pgn'
         input = open(input_path, 'r')
 
-    output_path = Path(args.output_path) / f"{args.representation}-{args.name}"
+    dataset_name = f"{args.representation}-{args.name}"
+    output_path = Path(args.output_path) / dataset_name / 'data.txt'
+    dataset_params_path = Path(args.output_path) / dataset_name / 'params.json'
+    with open(dataset_params_path, 'w') as f:
+        json.dump({
+            'representation': args.representation,
+            'labels': args.labels,
+            
+        }, f)
     if Path.exists(output_path) and not args.overwrite:
         print('Destination file exists, if you want to overwrite specify --overwrite/-w')
         exit(1)
@@ -111,7 +123,7 @@ def main():
             if args.representation == 'uci':
                 data = game_to_uci(game)
             elif args.representation == 'fen':
-                data = extract_fens(game)
+                data = extract_fens(game, sep='\n')
 
             output.write(data)
             output.write(sep)

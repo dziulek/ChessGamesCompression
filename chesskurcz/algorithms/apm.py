@@ -24,7 +24,7 @@ def move_transform(moves: List) -> str:
     
     return [re.sub(re.compile(r'\+|\#'), '', move) for move in moves]
 
-def encode_apm(games: List[List[str]]) -> bytes():
+def encode_apm(games: List[List[str]]) -> bytes:
 
     enc_data = bytes()
 
