@@ -10,8 +10,11 @@ from chess.pgn import read_game
 import zstandard
 import chess
 import logging
+
 from chesskurcz.logger import printProgressBar
-from chesskurcz.stats import Stats
+from chesskurcz.utilities.metrics import AvgMoveNumberInPosition, FenExtractor, UciExtractor,\
+        MaxMoveNumberInPosition
+from chesskurcz.utilities.stats_visitor import StatsVisitor 
 
 DEF_OUTPUT_PATH = Path(__file__).absolute().parents[1] / 'datasets'
 READ_SIZE = 32768
@@ -20,36 +23,6 @@ def decompress_zstd_chunk(input: io.StringIO, output: io.StringIO, read_size=819
 
     dctx = zstandard.ZstdDecompressor()
     return dctx.copy_stream(input, output, read_size=read_size, write_size=write_size)
-
-def game_to_uci(game: chess.pgn.Game, copy=False, sep=' ') -> str:
-
-    ucis = []
-    if copy:
-        _game = deepcopy(game)
-    else: _game = game
-
-    _game = _game.next()
-    while _game is not None:
-
-        ucis.append(str(_game.move))
-        _game = _game.next()
-
-    return sep.join(ucis)
-
-def extract_fens(game: chess.pgn.Game, copy=False, sep=',') -> str:
-
-    fens = []
-    if copy:
-        _game = deepcopy(game)
-    else: _game = game
-
-    _game = _game.next()
-    while _game is not None:
-
-        fens.append(_game.board().fen())
-        _game = _game.next()
-
-    return sep.join(fens)
 
 def main():
 
@@ -62,7 +35,7 @@ def main():
     parser.add_argument('--representation', '-r', default='uci')
     parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('--overwrite', '-w', action='store_true')
-    parser.add_argument('--labels', '-l', type=str, default=None)
+    parser.add_argument('--labels', '-l', action='store_true', default=None)
     parser.add_argument('--collect-stats', '-c', action='store_true')
 
     args = parser.parse_args()
@@ -74,7 +47,7 @@ def main():
 
     cwd = os.getcwd()
     input_path = os.path.join(cwd, args.input)
-    buffer = io.StringIO()
+    buffer = io.StringIO("")
 
     if input_path.endswith('.zst'):
         mode = 'zst'
@@ -85,51 +58,79 @@ def main():
         input = open(input_path, 'r')
 
     dataset_name = f"{args.representation}-{args.name}"
-    output_path = Path(args.output_path) / dataset_name / 'data.txt'
+    dataset_path = Path(args.output_path) / dataset_name
+    dataset_path.mkdir(parents=True, exist_ok=True)
+    output_path = dataset_path / 'data.txt'
+    labels_path = dataset_path / 'labels.txt'
+    stats_path =  dataset_path / 'stats.txt'
+
+
     dataset_params_path = Path(args.output_path) / dataset_name / 'params.json'
     with open(dataset_params_path, 'w') as f:
         json.dump({
             'representation': args.representation,
             'labels': args.labels,
-            
         }, f)
     if Path.exists(output_path) and not args.overwrite:
         print('Destination file exists, if you want to overwrite specify --overwrite/-w')
         exit(1)
     
     output = open(output_path, 'w')
+    if args.labels is not None:
+        output_labels = open(labels_path, 'w')
+        StatsVisitor.add_metric(UciExtractor)
+
+    if args.collect_stats:
+        stats_output = open(stats_path, 'w')
+        StatsVisitor.add_metric([AvgMoveNumberInPosition, MaxMoveNumberInPosition])
+
+    if args.representation == 'fen':
+        data_key = 'fen'
+        StatsVisitor.add_metric(FenExtractor)
+        
+    elif args.representation == 'uci':
+        data_key = 'uci'
+        StatsVisitor.add_metric(UciExtractor)
+
+    label_key = 'uci'
 
     cnt = 0
-    buffer_len = 0
+    line_sep = ' ' 
     sep = '\n'
+    
+
     if args.verbose:
         printProgressBar(cnt, args.max_games)
 
     while cnt < args.max_games:
-        
-        try:
-            game = read_game(buffer) 
-        except Exception as e:
-            if args.verbose:
-                print(e)     
-            continue
 
-        if game is not None and not len(game.errors):
+        result = read_game(buffer, Visitor=StatsVisitor) 
+        if isinstance(result, tuple):
+            game, stats = result
+        else:
+            game = result    
+    
+        if game is not None:
             cnt += 1
             if args.verbose:
                 printProgressBar(cnt, args.max_games)
 
-            # transform
-            if args.representation == 'uci':
-                data = game_to_uci(game)
-            elif args.representation == 'fen':
-                data = extract_fens(game, sep='\n')
+            data = stats[data_key]
+            del stats[data_key]
 
-            output.write(data)
+            if args.labels is not None:
+                labels = stats[label_key]
+                output_labels.write(sep.join(labels))
+                del stats[label_key]
+
+            output.write(line_sep.join(data))
             output.write(sep)
 
+            if args.collect_stats:
+                json.dump(stats, stats_output)                
+
         else:
-            buffer = io.StringIO(buffer.read())
+            buffer = io.StringIO(buffer.getvalue())
             if mode == 'zst':
                 _, bytes_written = decompress_zstd_chunk(input, buffer)
             else:
