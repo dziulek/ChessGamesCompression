@@ -129,6 +129,7 @@ dmypy.json
 .pyre/
 
 /data
+/datasets
 /compressed_data
 /.vscode
 
