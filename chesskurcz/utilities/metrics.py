@@ -1,6 +1,7 @@
 import chess
 import chess.pgn
 from abc import abstractmethod
+from typing import Dict
 
 class Metric:
 
@@ -96,3 +97,26 @@ class UciExtractor(Metric):
     
     def result(self):
         return self.ucis
+
+
+class PieceTypeProbability(Metric):
+
+    def __init__(self, name: str = 'piece_type_probability') -> None:
+        super().__init__(name)
+
+        self.piece_sums = {piece_name: 0 for piece_name in chess.PIECE_NAMES if piece_name is not None}
+        self.count = 0
+    
+    def update(self, board: chess.Board, move: chess.Move) -> None:
+        
+        piece_name = chess.piece_name(board.piece_at(move.from_square).piece_type)
+        self.count += 1 
+        self.calculate(piece_name)
+
+    def calculate(self, piece_name) -> None:
+        self.piece_sums[piece_name] += 1
+
+    def result(self) -> Dict[str, float]:
+        return {
+            k: v / self.count for k, v in self.piece_sums.items()
+        } 

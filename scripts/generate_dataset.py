@@ -13,7 +13,7 @@ import logging
 
 from chesskurcz.logger import printProgressBar
 from chesskurcz.utilities.metrics import AvgMoveNumberInPosition, FenExtractor, UciExtractor,\
-        MaxMoveNumberInPosition
+        MaxMoveNumberInPosition, PieceTypeProbability
 from chesskurcz.utilities.stats_visitor import StatsVisitor 
 
 DEF_OUTPUT_PATH = Path(__file__).absolute().parents[1] / 'datasets'
@@ -62,7 +62,7 @@ def main():
     dataset_path.mkdir(parents=True, exist_ok=True)
     output_path = dataset_path / 'data.txt'
     labels_path = dataset_path / 'labels.txt'
-    stats_path =  dataset_path / 'stats.txt'
+    stats_path =  dataset_path / 'stats.json'
 
 
     dataset_params_path = Path(args.output_path) / dataset_name / 'params.json'
@@ -82,7 +82,7 @@ def main():
 
     if args.collect_stats:
         stats_output = open(stats_path, 'w')
-        StatsVisitor.add_metric([AvgMoveNumberInPosition, MaxMoveNumberInPosition])
+        StatsVisitor.add_metric([AvgMoveNumberInPosition, MaxMoveNumberInPosition, PieceTypeProbability])
 
     if args.representation == 'fen':
         data_key = 'fen'
@@ -99,8 +99,7 @@ def main():
     sep = '\n'
     
 
-    if args.verbose:
-        printProgressBar(cnt, args.max_games)
+    printProgressBar(cnt, args.max_games)
 
     while cnt < args.max_games:
 
@@ -112,15 +111,15 @@ def main():
     
         if game is not None:
             cnt += 1
-            if args.verbose:
-                printProgressBar(cnt, args.max_games)
+            printProgressBar(cnt, args.max_games)
 
             data = stats[data_key]
             del stats[data_key]
 
             if args.labels is not None:
                 labels = stats[label_key]
-                output_labels.write(sep.join(labels))
+                output_labels.write(line_sep.join(labels))
+                output_labels.write(sep)
                 del stats[label_key]
 
             output.write(line_sep.join(data))
@@ -143,6 +142,8 @@ def main():
     buffer.close()
     input.close()
     output.close()
+    output_labels.close()
+    stats_output.close()
 
 
 if __name__ == "__main__":
