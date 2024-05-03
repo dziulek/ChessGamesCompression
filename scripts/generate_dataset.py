@@ -1,6 +1,8 @@
 import os, sys, io
 import json
 from copy import deepcopy
+import pandas as pd
+import numpy as np
 import time
 from pathlib import Path
 import argparse
@@ -24,6 +26,33 @@ def decompress_zstd_chunk(input: io.StringIO, output: io.StringIO, read_size=819
     dctx = zstandard.ZstdDecompressor()
     return dctx.copy_stream(input, output, read_size=read_size, write_size=write_size)
 
+def flatten_df(df: pd.DataFrame, remove_old_columns=True) -> pd.DataFrame:
+
+    dict_columns = []
+    for col in df.columns:
+        if isinstance(df[col].iloc[0], dict):
+            dict_columns.append(col)
+            df = df.assign(**{f"{col}_{k}": v for k, v in df[col].apply(pd.Series).items()})
+
+    if remove_old_columns:
+        df.drop(dict_columns, axis=1, inplace=True)
+
+    return df
+
+def aggregate_statistics(per_game_df: pd.DataFrame, func='mean') -> pd.DataFrame:
+
+    
+    tmp_df = flatten_df(per_game_df)
+    columns_to_aggregate = [colname for colname, dtype in dict(tmp_df.dtypes).items() \
+                            if np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.integer) or np.issubdtype(dtype, np.bool_)]
+
+    tmp_df = tmp_df[columns_to_aggregate] 
+    tmp_df = tmp_df.astype(float)
+
+    tmp_df = tmp_df.aggregate(func)
+    return tmp_df
+        
+
 def main():
 
     parser = argparse.ArgumentParser()
@@ -36,9 +65,12 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('--overwrite', '-w', action='store_true')
     parser.add_argument('--labels', '-l', action='store_true', default=None)
-    parser.add_argument('--collect-stats', '-c', action='store_true')
+    parser.add_argument('--collect-stats', '-c', type=str, default=None)
 
     args = parser.parse_args()
+
+    if args.collect_stats is not None:
+        assert(args.collect_stats in ('general', 'granular'))
 
     if args.verbose:
         logging.getLogger("chess.pgn").setLevel(logging.DEBUG)
@@ -62,7 +94,8 @@ def main():
     dataset_path.mkdir(parents=True, exist_ok=True)
     output_path = dataset_path / 'data.txt'
     labels_path = dataset_path / 'labels.txt'
-    stats_path =  dataset_path / 'stats.json'
+    global_stats_path = dataset_path / 'global_stats.json'
+    stats_path =  dataset_path / 'stats_per_game.json'
 
 
     dataset_params_path = Path(args.output_path) / dataset_name / 'params.json'
@@ -81,8 +114,12 @@ def main():
         StatsVisitor.add_metric(UciExtractor)
 
     if args.collect_stats:
-        stats_output = open(stats_path, 'w')
-        StatsVisitor.add_metric([AvgMoveNumberInPosition, MaxMoveNumberInPosition, PieceTypeProbability])
+        global_stats_output = open(global_stats_path, 'w')
+        if args.collect_stats == 'granular':
+            stats_output = open(stats_path, 'w')
+        StatsVisitor.add_metric([
+            AvgMoveNumberInPosition, MaxMoveNumberInPosition, PieceTypeProbability,
+        ])
 
     if args.representation == 'fen':
         data_key = 'fen'
@@ -94,10 +131,10 @@ def main():
 
     label_key = 'uci'
 
+    per_game_stats = []
     cnt = 0
     line_sep = ' ' 
     sep = '\n'
-    
 
     printProgressBar(cnt, args.max_games)
 
@@ -126,7 +163,7 @@ def main():
             output.write(sep)
 
             if args.collect_stats:
-                json.dump(stats, stats_output)                
+                per_game_stats.append(stats)
 
         else:
             buffer = io.StringIO(buffer.getvalue())
@@ -138,12 +175,25 @@ def main():
             buffer.seek(0)
             if not bytes_written:
                 break
+    
+    if args.collect_stats:
+        if args.collect_stats == 'granular':
+            json.dump(per_game_stats, stats_output)                
+
+        global_stats = pd.DataFrame(per_game_stats)
+        global_stats = aggregate_statistics(global_stats, func='mean')
+        global_stats.to_json(global_stats_output)
+
         
     buffer.close()
     input.close()
     output.close()
-    output_labels.close()
-    stats_output.close()
+    if args.labels is not None:
+        output_labels.close()
+    if args.collect_stats:
+        global_stats_output.close()
+        if args.collect_stats == 'granular':
+            stats_output.close()
 
 
 if __name__ == "__main__":
