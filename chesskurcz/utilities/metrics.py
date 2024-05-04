@@ -85,6 +85,24 @@ class FenExtractor(Metric):
     def result(self):
         return self.fens
 
+
+class GameLen(Metric):
+
+    def __init__(self, name: str = 'game_len') -> None:
+        super().__init__(name)
+        self.move_count = 0
+    
+    def update(self, board: chess.Board, move: chess.Move) -> None:
+
+        self.calculate(board, move)
+
+    def calculate(self, board, move):
+        
+        self.move_count += 1
+    
+    def result(self):
+        return self.move_count
+
     
 class UciExtractor(Metric):
 
@@ -110,7 +128,7 @@ class EmptySquaresNumMoves(Metric):
         self.num_moves = []
         self.num_pieces = []
         self.count = 0
-        self.stats = {'max': None, 'min': None, 'mean': None, 'median': None}
+        self.stats = {k: None for k in ['min', 'max', 'median', 'mean']}
     
     def update(self, board: chess.Board, move: chess.Move) -> None:
 
@@ -119,7 +137,8 @@ class EmptySquaresNumMoves(Metric):
     def calculate(self, board: chess.Board, move: chess.Move) -> None:
 
         self.num_moves.append(board.legal_moves.count())
-        self.num_pieces.append(bin(board.occupied).count("1"))
+        self.num_pieces.append(bin(board.occupied_co[int(board.turn)]).count("1"))
+        self.count =+ 1
     
     def result(self) -> Dict[str, float]:
 
@@ -127,10 +146,10 @@ class EmptySquaresNumMoves(Metric):
             return self.stats
 
         diffs = (64 - np.array(self.num_pieces)) - np.array(self.num_moves)
-        self.stats['max'] = np.max(diffs)
-        self.stats['min'] = np.min(diffs)
-        self.stats['mean'] = np.mean(diffs)
-        self.stats['median'] = np.median(diffs)
+        self.stats['max'] = np.max(diffs).astype(float)
+        self.stats['min'] = np.min(diffs).astype(float)
+        self.stats['mean'] = np.mean(diffs).astype(float)
+        self.stats['median'] = np.median(diffs).astype(float)
 
         return self.stats
 

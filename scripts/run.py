@@ -2,9 +2,17 @@ import torch
 import torch.nn as nn
 import argparse
 
-from chesskurcz.algorithms.autoencoder import AutoEncoder
-from chesskurcz.algorithms.dataset. import BasicDataset
 
 def run_experiment(model: torch.Module,
-                   dataset: ):
+                   dataset: torch.utils.data.Dataset):
 
+    pass
+
+
+def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument()
+
+if __name__ == "__main__":
+    main()

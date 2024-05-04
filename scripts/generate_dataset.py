@@ -12,10 +12,11 @@ from chess.pgn import read_game
 import zstandard
 import chess
 import logging
+from multiprocessing import Queue
 
 from chesskurcz.logger import printProgressBar
 from chesskurcz.utilities.metrics import AvgMoveNumberInPosition, FenExtractor, UciExtractor,\
-        MaxMoveNumberInPosition, PieceTypeProbability
+        MaxMoveNumberInPosition, PieceTypeProbability, EmptySquaresNumMoves, GameLen
 from chesskurcz.utilities.stats_visitor import StatsVisitor 
 
 DEF_OUTPUT_PATH = Path(__file__).absolute().parents[1] / 'datasets'
@@ -89,7 +90,7 @@ def main():
         mode = 'pgn'
         input = open(input_path, 'r')
 
-    dataset_name = f"{args.representation}-{args.name}"
+    dataset_name = f"{args.representation}-{args.name}-{args.max_games}"
     dataset_path = Path(args.output_path) / dataset_name
     dataset_path.mkdir(parents=True, exist_ok=True)
     output_path = dataset_path / 'data.txt'
@@ -119,6 +120,7 @@ def main():
             stats_output = open(stats_path, 'w')
         StatsVisitor.add_metric([
             AvgMoveNumberInPosition, MaxMoveNumberInPosition, PieceTypeProbability,
+            EmptySquaresNumMoves, GameLen
         ])
 
     if args.representation == 'fen':
