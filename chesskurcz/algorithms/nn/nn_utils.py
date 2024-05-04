@@ -10,6 +10,13 @@ from chesskurcz.algorithms.util.utils import *
 DEF_REPR_T_SIZE = (4, 1, 8) # 4 channels, one row and one-hot encoding for eight classes (row or column)
 NULL_MOVE = torch.zeros(DEF_REPR_T_SIZE)
 
+def make_label(board: chess.Board, move: chess.Move, **kwargs):
+
+    ...
+
+def make_input(board: )
+    ...
+
 def default_uci_move_repr(uci_move: str) -> jax.Float[torch.Tensor, "4 1 8"]:
 
     if len(uci_move) == 0: return torch.zeros(DEF_REPR_T_SIZE)

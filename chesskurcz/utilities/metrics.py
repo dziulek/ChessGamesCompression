@@ -1,4 +1,5 @@
 import chess
+import numpy as np
 import chess.pgn
 from abc import abstractmethod
 from typing import Dict
@@ -57,12 +58,13 @@ class MaxMoveNumberInPosition(Metric):
 
     def update(self, board: chess.Board, move: chess.Move) -> None:
 
-        self.max_moves_in_position = max(self.max_moves_in_position, self.calculate(board, move))
+        self.max_moves_in_position = max(self.max_moves_in_position, MaxMoveNumberInPosition.calculate(board, move))
     
     def result(self):
         return self.max_moves_in_position
-    
-    def calculate(self, board: chess.Board, move: chess.Move):
+
+    @staticmethod    
+    def calculate(board: chess.Board, move: chess.Move):
         return board.legal_moves.count()
 
 
@@ -74,9 +76,10 @@ class FenExtractor(Metric):
         self.fens = []
 
     def update(self, board: chess.Board, move: chess.Move) -> None:
-        self.fens.append(self.calculate(board, move))
-    
-    def calculate(self, board: chess.Board, move: chess.Move) -> str:
+        self.fens.append(FenExtractor.calculate(board, move))
+
+    @staticmethod    
+    def calculate(board: chess.Board, move: chess.Move) -> str:
         return board.fen()
     
     def result(self):
@@ -90,13 +93,46 @@ class UciExtractor(Metric):
         self.ucis = []
     
     def update(self, board: chess.Board, move: chess.Move) -> None:
-        self.ucis.append(self.calculate(board, move))
-    
-    def calculate(self, board: chess.Board, move: chess.Move) -> str:
+        self.ucis.append(UciExtractor.calculate(board, move))
+
+    @staticmethod
+    def calculate(board: chess.Board, move: chess.Move) -> str:
         return str(move)
     
     def result(self):
         return self.ucis
+
+class EmptySquaresNumMoves(Metric):
+
+    def __init__(self, name: str = 'empty_square_num_moves') -> None:
+        super().__init__(name)
+
+        self.num_moves = []
+        self.num_pieces = []
+        self.count = 0
+        self.stats = {'max': None, 'min': None, 'mean': None, 'median': None}
+    
+    def update(self, board: chess.Board, move: chess.Move) -> None:
+
+        self.calculate(board, move)
+
+    def calculate(self, board: chess.Board, move: chess.Move) -> None:
+
+        self.num_moves.append(board.legal_moves.count())
+        self.num_pieces.append(bin(board.occupied).count("1"))
+    
+    def result(self) -> Dict[str, float]:
+
+        if not self.count:
+            return self.stats
+
+        diffs = (64 - np.array(self.num_pieces)) - np.array(self.num_moves)
+        self.stats['max'] = np.max(diffs)
+        self.stats['min'] = np.min(diffs)
+        self.stats['mean'] = np.mean(diffs)
+        self.stats['median'] = np.median(diffs)
+
+        return self.stats
 
 
 class PieceTypeProbability(Metric):
@@ -117,9 +153,6 @@ class PieceTypeProbability(Metric):
         self.piece_sums[piece_name] += 1
 
     def result(self) -> Dict[str, float]:
-        if not self.count:
-            return self.piece_sums
-
-        return {
+        if not self.count:       return {
             k: v / self.count for k, v in self.piece_sums.items()
         } 
