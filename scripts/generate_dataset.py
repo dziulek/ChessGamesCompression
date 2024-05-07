@@ -98,12 +98,15 @@ def main():
     global_stats_path = dataset_path / 'global_stats.json'
     stats_path =  dataset_path / 'stats_per_game.json'
 
+    line_sep = ';' 
+    sep = '\n'
 
     dataset_params_path = Path(args.output_path) / dataset_name / 'params.json'
     with open(dataset_params_path, 'w') as f:
         json.dump({
             'representation': args.representation,
             'labels': args.labels,
+            'line_sep': line_sep 
         }, f)
     if Path.exists(output_path) and not args.overwrite:
         print('Destination file exists, if you want to overwrite specify --overwrite/-w')
@@ -119,8 +122,8 @@ def main():
         if args.collect_stats == 'granular':
             stats_output = open(stats_path, 'w')
         StatsVisitor.add_metric([
-            AvgMoveNumberInPosition, MaxMoveNumberInPosition, PieceTypeProbability,
-            EmptySquaresNumMoves, GameLen
+            AvgMoveNumberInPosition, MaxMoveNumberInPosition, 
+            PieceTypeProbability, EmptySquaresNumMoves, GameLen
         ])
 
     if args.representation == 'fen':
@@ -135,8 +138,7 @@ def main():
 
     per_game_stats = []
     cnt = 0
-    line_sep = ' ' 
-    sep = '\n'
+    
 
     printProgressBar(cnt, args.max_games)
 

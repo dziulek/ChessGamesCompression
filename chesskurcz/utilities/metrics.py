@@ -172,6 +172,9 @@ class PieceTypeProbability(Metric):
         self.piece_sums[piece_name] += 1
 
     def result(self) -> Dict[str, float]:
-        if not self.count:       return {
+        if not self.count:       
+            return self.piece_sums
+
+        return {
             k: v / self.count for k, v in self.piece_sums.items()
         } 

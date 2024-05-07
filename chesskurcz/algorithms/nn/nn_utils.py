@@ -3,33 +3,64 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.functional import one_hot
-import jaxtyping as jax
+from typing import Any, Dict, List, Tuple
 
 from chesskurcz.algorithms.util.utils import *
 
-DEF_REPR_T_SIZE = (4, 1, 8) # 4 channels, one row and one-hot encoding for eight classes (row or column)
-NULL_MOVE = torch.zeros(DEF_REPR_T_SIZE)
 
-def make_label(board: chess.Board, move: chess.Move, **kwargs):
+class Pipe:
 
-    ...
+    def __init__(self, funcs: Callable | List[Callable]) -> None:
 
-def make_input(board: )
-    ...
+        if not isinstance(funcs, list):
+            funcs = [funcs] 
+        self.funcs = funcs
+    
+    def __call__(self, input: Any):
 
-def default_uci_move_repr(uci_move: str) -> jax.Float[torch.Tensor, "4 1 8"]:
+        out = input
+        for func in self.funcs:
+            out = func(out)
+        
+        return out
 
-    if len(uci_move) == 0: return torch.zeros(DEF_REPR_T_SIZE)
-    if uci_move in set(POSSIBLE_SCORES): return torch.zeros(DEF_REPR_T_SIZE)
+def bitboard_to_array(bitboard: chess.Bitboard) -> np.ndarray:
 
-    encoded = torch.tensor([
-        ord(uci_move[0]) - ord('a'),
-        int(uci_move[1]) - 1,
-        ord(uci_move[2]) - ord('a'),
-        int(uci_move[3]) - 1
-    ])
+    return [int(b) for b in bin(bitboard)[2:]]
 
-    return one_hot(encoded, num_classes=8).reshape(DEF_REPR_T_SIZE)
+
+def make_move_label(board: chess.Board, move: chess.Move, 
+                    algorithm: str = 'unique', **kwargs):
+
+    assert(algorithm in ('unique', '')) 
+
+    uci_move = str(move)
+
+    if algorithm == 'unique':
+        encoded = torch.tensor([
+            ord(uci_move[0]) - ord('a'),
+            int(uci_move[1]) - 1,
+            ord(uci_move[2]) - ord('a'),
+            int(uci_move[3]) - 1
+        ])
+        return one_hot(encoded, num_classes=8)
+
+def make_input(board: chess.Board, 
+               add_random_channel: bool = False, 
+               device: torch.DeviceObjType = torch.cpu) -> torch.Tensor:
+
+    color = board.turn
+    input = []
+
+    for piece_type in chess.PIECE_TYPES:
+
+        bitboard = board.pieces_mask(piece_type, color)
+        input.append(torch.tensor(bitboard_to_array(bitboard), dtype=torch.float32, device=device))
+    
+    if add_random_channel:
+        input.append(torch.rand((8,8), dtype=torch.float32, device=device))
+    
+    return torch.concat(input, dim=0)
 
 def spatial_out_dim(input_dim: Tuple, 
                     kernel_size: Tuple[int, int],
