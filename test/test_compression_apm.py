@@ -8,7 +8,8 @@ from chesskurcz.algorithms.util.utils import get_workspace_path
 from chesskurcz.algorithms.encoder import Encoder
 import io, os, sys
 
-class Test_compression_apm(unittest.TestCase): 
+
+class Test_compression_apm: 
 
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
@@ -17,8 +18,8 @@ class Test_compression_apm(unittest.TestCase):
         self.path = get_workspace_path()
         self.BATCH_SIZE = int(1e4)
 
-        self.encoder_one_worker = Encoder('apm', par_workers=1, batch_size=self.BATCH_SIZE)
-        self.encoder_mul_workers = Encoder('apm', par_workers=4, batch_size=self.BATCH_SIZE)
+        self.encoder_one_worker = Encoder('apm', num_workers=1, batch_size=self.BATCH_SIZE)
+        self.encoder_mul_workers = Encoder('apm', num_workers=4, batch_size=self.BATCH_SIZE)
 
     def test_reader(self,):
 

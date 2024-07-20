@@ -202,7 +202,7 @@ def main():
 
     N = BATCH_SIZE * 40
 
-    enc = encoder.Encoder(alg='apm', par_workers=4, batch_size=10000)
+    enc = encoder.Encoder(alg='apm', num_workers=4, batch_size=10000)
     games = enc.decode()
     
     seq_origin = torch.randint(0, dict_dim, (N, seq_len))

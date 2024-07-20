@@ -1,5 +1,7 @@
 # Chess Games compression techniques
 
+===CODE UNDER REFACTOR===
+
 ![CI status](https://github.com/dziulek/ChessGamesCompression/actions/workflows/build.yml/badge.svg)
 
 This package provides several techniques to compress chess games.

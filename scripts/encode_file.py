@@ -58,7 +58,7 @@ def main():
 
     encoder = Encoder(
         alg=args.algorithm,
-        par_workers=args.num_workers,
+        num_workers=args.num_workers,
         batch_size=args.read_size
     )
 

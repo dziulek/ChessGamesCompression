@@ -1,6 +1,9 @@
 name: Build and Tests 3.7 3.8
 
-on: [push]
+on: 
+  push:
+    branches:
+      - main
 
 jobs:
   build:

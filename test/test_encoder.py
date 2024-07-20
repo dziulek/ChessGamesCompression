@@ -16,8 +16,8 @@ class Test_encoder(unittest.TestCase):
         self.path = get_workspace_path()
         self.BATCH_SIZE = int(1e4)
 
-        self.encoder_one_worker = Encoder('apm', par_workers=1, batch_size=self.BATCH_SIZE)
-        self.encoder_mul_workers = Encoder('apm', par_workers=4, batch_size=self.BATCH_SIZE)
+        self.encoder_one_worker = Encoder('apm', num_workers=1, batch_size=self.BATCH_SIZE)
+        self.encoder_mul_workers = Encoder('apm', num_workers=4, batch_size=self.BATCH_SIZE)
 
         self.transform_out = TransformOut(
             move_repr=game_from_uci_to_pgn
@@ -56,7 +56,7 @@ class Test_encoder(unittest.TestCase):
 
             alg_output_file = '__dec.txt'
             self.encoder_one_worker.decode_batch_of_games(
-                enc_file_name, alg_output_file, N=STEP, verbose=True
+                enc_file_name, alg_output_file, num=STEP, verbose=True
             )
 
             self.assertEqual(True, alg_output_file in set(os.listdir()))

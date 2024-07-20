@@ -24,15 +24,14 @@ def move_transform(moves: List) -> str:
     
     return [re.sub(re.compile(r'\+|\#'), '', move) for move in moves]
 
+
 def encode_apm(games: List[List[str]]) -> bytes:
 
     enc_data = bytes()
 
-
     for game in games:
 
         enc_game = bytes()
-
         if len(game) == 0:
             continue
 
@@ -40,15 +39,15 @@ def encode_apm(games: List[List[str]]) -> bytes:
             enc_game += int.to_bytes(ALL_POSSIBLE_MOVES[move], 2, 'big')
 
         bytes_no = len(enc_game)
-
         enc_game = int.to_bytes(bytes_no, 2, 'big') + enc_game
-
         enc_data += enc_game
 
     return enc_data
 
 
-def decode_apm(data: bytes, return_games=False, games_objs: List=None) -> List[List[str]]:
+def decode_apm(data: bytes, 
+               return_games: bool=False, 
+               games_objs: List=None) -> List[List[str]]:
         
     i = 0
     byte_no = len(data)
@@ -73,7 +72,10 @@ def decode_apm(data: bytes, return_games=False, games_objs: List=None) -> List[L
 
     return output
 
-def read_games_apm(r_buff: io.TextIOWrapper, batch_size: int, max_games: float=np.inf) -> Tuple[bytes, int]:
+
+def read_games_apm(r_buff: io.TextIOWrapper, 
+                   batch_size: int, 
+                   max_games: float=np.inf) -> Tuple[bytes, int]:
 
     enc_data = bytearray(2 * batch_size)
     head = 0

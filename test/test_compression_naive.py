@@ -13,8 +13,8 @@ class Test_compression_naive(unittest.TestCase):
         self.path = get_workspace_path()
         self.BATCH_SIZE = int(1e4)
 
-        self.encoder_one_worker = Encoder('naive', par_workers=1, batch_size=self.BATCH_SIZE)
-        self.encoder_mul_workers = Encoder('naive', par_workers=4, batch_size=self.BATCH_SIZE)
+        self.encoder_one_worker = Encoder('naive', num_workers=1, batch_size=self.BATCH_SIZE)
+        self.encoder_mul_workers = Encoder('naive', num_workers=4, batch_size=self.BATCH_SIZE)
 
     def test_reader(self,):
 

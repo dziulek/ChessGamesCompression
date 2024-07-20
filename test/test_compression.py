@@ -1,14 +1,13 @@
-import unittest
-
-
+import pytest
 from chesskurcz.algorithms.util.utils import get_workspace_path, compare_games
 import io, os, sys, multiprocessing
 
-from chesskurcz.algorithms.transform import TransformOut, game_from_pgn_to_uci, game_from_uci_to_pgn
-
+from chesskurcz.algorithms.transform import TransformOut, \
+    game_from_pgn_to_uci, game_from_uci_to_pgn
 from chesskurcz.algorithms.encoder import Encoder
 
-class Test_compression_rank(unittest.TestCase): 
+@pytest.mark.parametrize("algorithm", ["naive", "rank", "apm"])
+class TestCompressionAlgorithms:
 
     def __init__(self, methodName: str = ...) -> None:
         super().__init__(methodName)
@@ -23,41 +22,6 @@ class Test_compression_rank(unittest.TestCase):
         self.transform_out = TransformOut(
             move_repr=game_from_uci_to_pgn
         )
-
-    def __simple_worker(self, Q_in, Q_out):
-
-        data = ''
-        while 1:
-
-            d = Q_in.get()
-            if d == 'kill': break
-            else: data += d
-        
-        return data
-
-    def test_reader(self,):
-
-        encoder = Encoder('apm', batch_size=self.BATCH_SIZE)
-
-        with open(self.path + self.data_path, 'r') as f:
-            source_data = f.read()
-
-        ref_data = source_data
-        Q = multiprocessing.Queue()
-
-        reader = multiprocessing.Process(target=encoder._Encoder__reader, 
-                                         args=(self.path + self.data_path, Q, False, None))
-        reader.start()
-        
-        out_data = ''
-        while 1:
-            d = Q.get()
-            if d == 'kill': break
-            out_data += d
-
-        reader.join()
-
-        self.assertEqual(ref_data, out_data)
 
     def test_process_one_thread(self,):
 
@@ -151,7 +115,4 @@ class Test_compression_rank(unittest.TestCase):
                 
         os.remove(alg_output_file)
         os.remove(enc_file_name)
-
-if __name__ == "__main__":
-
-    unittest.main()
+    

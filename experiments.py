@@ -41,7 +41,7 @@ def main():
 
             stats = Stats(file, dest_file)
             
-            encoder = Encoder(alg=alg, par_workers=4, batch_size=BATCH_SIZE)
+            encoder = Encoder(alg=alg, num_workers=4, batch_size=BATCH_SIZE)
 
             start = time.time()
             encoder.encode(file, dest_file, verbose=True)

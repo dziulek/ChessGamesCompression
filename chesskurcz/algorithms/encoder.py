@@ -13,6 +13,7 @@ from typing import Callable, List, Dict
 from chesskurcz import logger
 
 import importlib
+from pathlib import Path
 import numpy as np
 import re
 
@@ -20,12 +21,15 @@ import ctypes
 
 class Encoder:
 
-    def __init__(self, alg='apm', par_workers=1, batch_size=1e4) -> None:
+    def __init__(self, 
+                 alg: str='apm', 
+                 num_workers: int=1, 
+                 batch_size: int=1e4) -> None:
         
         self.alg = alg
-        self.par_workers = par_workers
+        self.num_workers = num_workers
         self.batch_size = batch_size
-        self.thresh_for_mult_threads = 1e6
+        self.thresh_for_mul_threads = 1e6
 
         self.__THRASH_REGEX = re.compile(r'(\?|\!|\{[^{}]*\}|\[[^\[\]]*\]|\n|\#|\+)')
 
@@ -40,7 +44,6 @@ class Encoder:
         self.source_lock = multiprocessing.Lock()
 
         self.module_alg = importlib.import_module('chesskurcz.algorithms.' + alg)
-
         self.current_file = None
 
         # parameters for open mode
@@ -48,14 +51,20 @@ class Encoder:
         self.open_mode = False
         self.ptr_pos = 0
 
-    def __reader(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
+    def __reader(self, 
+                 path: str, 
+                 Q: multiprocessing.Queue, 
+                 binary: bool=False, 
+                 max_games: int=np.inf, 
+                 verbose: bool=False):
+
         _m = 'r'
-        if binary: _m = 'rb'
+        if binary: 
+            _m = 'rb'
 
         file_size = os.path.getsize(path)
 
         if verbose :
-            # print progress bar
             if self.open_mode:
                 logger.printProgressBar(0, max_games, prefix='Progress', suffix='Complete')
             else:
@@ -73,11 +82,13 @@ class Encoder:
                 while 1:
 
                     if not Q.qsize() < 5: continue
-                    
                     if binary:
 
-                        read_games = getattr(self.module_alg, 'read_games_' + self.alg)
-                        enc_data, g_no = read_games(in_stream, self.batch_size, games_left)
+                        read_games_fun = getattr(self.module_alg, 'read_games_' + self.alg)
+                        enc_data, g_no = read_games_fun(in_stream, 
+                                                        self.batch_size, 
+                                                        games_left)
+
                         games_left -= g_no
                         with self.__games_cnt.get_lock():
                             self.__games_cnt.value += g_no
@@ -114,7 +125,7 @@ class Encoder:
         except Exception as e:
             print(f"[ERROR] Stopping process, due to the following exception {repr(e)}")
 
-        for _ in range(self.par_workers): Q.put('kill')
+        for _ in range(self.num_workers): Q.put('kill')
 
     def __writer(self, path: str, Q: multiprocessing.Queue, binary=False, max_games=np.inf, verbose=False):
         
@@ -192,7 +203,7 @@ class Encoder:
         writer.start()
 
         workers: List[multiprocessing.Process] = []
-        for _ in range(self.par_workers):
+        for _ in range(self.num_workers):
             workers.append(multiprocessing.Process(target=self.__process_encode, args=(Q_data, Q_enc, in_tran, verbose)))
             workers[-1].start()
 
@@ -206,9 +217,12 @@ class Encoder:
 
         self.current_file = None
 
-    def decode(self, in_stream: str,
-                out_stream: str, out_tran: TransformOut=None,
-                max_games=np.inf, verbose=False):
+    def decode(self, 
+               in_stream: str,
+               out_stream: str, 
+               out_tran: TransformOut=None,
+               max_games: int=np.inf, 
+               verbose: bool=False):
 
         self.current_file = in_stream
 
@@ -232,21 +246,23 @@ class Encoder:
             else: print('Decompressing file', in_stream)
 
         workers: List[multiprocessing.Process] = []
-        for _ in range(self.par_workers):
+        for _ in range(self.num_workers):
             workers.append(multiprocessing.Process(target=self.__process_decode, args=(Q_enc, Q_dec, out_tran, verbose)))
             workers[-1].start()
 
         reader.join()
-
         for w in workers: w.join()
-
         Q_dec.put('kill')
 
         writer.join()
-
         self.current_file = None
 
-    def decode_batch_of_games(self, path: str, output_path: str, N: int, out_tran: TransformOut=None, verbose: bool=False):
+    def decode_batch_of_games(self, 
+                              path: str, 
+                              output_path: str, 
+                              num: int, 
+                              out_tran: TransformOut=None, 
+                              verbose: bool=False):
 
         if not self.open_mode:
             self.__bytes_read_tot.value = 0
@@ -260,4 +276,4 @@ class Encoder:
 
         else: self.curr_path_name = path
 
-        self.decode(path, output_path, out_tran, N, verbose)
+        self.decode(path, output_path, out_tran, num, verbose)
